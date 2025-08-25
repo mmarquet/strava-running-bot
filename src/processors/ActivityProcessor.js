@@ -199,15 +199,15 @@ class ActivityProcessor {
   }
 
   // Process recent activities for all members (useful for initial sync or recovery)
-  async processRecentActivities(hoursBack = 24) {
+  async processRecentActivities(hoursBack = 24) {  
+    const members = await this.memberManager.getAllMembers();
+    const after = Math.floor((Date.now() - (hoursBack * 60 * 60 * 1000)) / 1000);
+
     logger.activity.info('Processing recent activities', {
       hoursBack,
       afterTimestamp: after,
       memberCount: members.length
     });
-    
-    const members = await this.memberManager.getAllMembers();
-    const after = Math.floor((Date.now() - (hoursBack * 60 * 60 * 1000)) / 1000);
 
     for (const member of members) {
       const memberName = member.discordUser ? member.discordUser.displayName : `${member.athlete.firstname} ${member.athlete.lastname}`;

@@ -155,7 +155,7 @@ class DiscordBot {
     if (this.client) {
       try {
         await this.client.destroy();
-      } catch (err) {
+      } catch (_err) {
         // ignore destroy errors
       }
     }

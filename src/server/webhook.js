@@ -99,7 +99,7 @@ class WebhookServer {
     });
 
     // 404 handler must come last
-    this.app.use('*', (req, res) => {
+    this.app.use('*splat', (req, res) => {
       res.status(404).json({ 
         error: 'Not found',
         path: req.originalUrl 
@@ -284,7 +284,7 @@ class WebhookServer {
       // Get Discord user information
       let discordUser = null;
       try {
-        if (this.activityProcessor.discordBot && this.activityProcessor.discordBot.client) {
+        if (this.activityProcessor.discordBot && this.activityProcessor.discordBot?.client) {
           discordUser = await this.activityProcessor.discordBot.client.users.fetch(discordUserId);
         }
       } catch (error) {

@@ -99,7 +99,7 @@ class WebhookServer {
     });
 
     // 404 handler must come last
-    this.app.use('*splat', (req, res) => {
+    this.app.use('*', (req, res) => {
       res.status(404).json({ 
         error: 'Not found',
         path: req.originalUrl 

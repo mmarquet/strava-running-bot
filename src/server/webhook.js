@@ -284,7 +284,7 @@ class WebhookServer {
       // Get Discord user information
       let discordUser = null;
       try {
-        if (this.activityProcessor.discordBot && this.activityProcessor.discordBot?.client) {
+        if (this.activityProcessor.discordBot?.client) {
           discordUser = await this.activityProcessor.discordBot.client.users.fetch(discordUserId);
         }
       } catch (error) {

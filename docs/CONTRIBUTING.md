@@ -43,7 +43,7 @@ Examples of unacceptable behavior include:
 
 Before contributing, ensure you have completed the basic setup from the [main README](../README.md):
 
-- ✅ Node.js 22+ installed
+- ✅ Node.js 24+ installed
 - ✅ Development environment working
 - ✅ Discord and Strava accounts for testing
 

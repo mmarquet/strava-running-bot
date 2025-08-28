@@ -4,7 +4,7 @@ A comprehensive Discord bot that automatically posts Strava activities from your
 
 ![Discord Bot](https://img.shields.io/badge/Discord-Bot-5865F2?style=for-the-badge&logo=discord&logoColor=white)
 ![Strava](https://img.shields.io/badge/Strava-API-FC4C02?style=for-the-badge&logo=strava&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js-22+-339933?style=for-the-badge&logo=node.js&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-24+-339933?style=for-the-badge&logo=node.js&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=mmarquet_strava-running-bot&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=mmarquet_strava-running-bot)

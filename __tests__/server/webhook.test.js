@@ -780,9 +780,12 @@ describe('WebhookServer', () => {
     it('should handle stop when server is not running', async () => {
       webhookServer.server = null;
 
-      await webhookServer.stop();
+      const stopPromise = webhookServer.stop();
 
-      // Should not throw error and should resolve successfully
+      // Should resolve successfully without throwing
+      await expect(stopPromise).resolves.toBeUndefined();
+      
+      // Should not log server stopped message when no server exists
       expect(logger.server.info).not.toHaveBeenCalledWith('Webhook server stopped');
     });
   });

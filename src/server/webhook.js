@@ -310,51 +310,7 @@ class WebhookServer {
         athleteId: athlete.id
       });
 
-      res.send(`
-        <html>
-          <head>
-            <title>Strava Authorization Complete</title>
-            <style>
-              body { 
-                font-family: Arial, sans-serif; 
-                text-align: center; 
-                padding: 50px; 
-                background-color: #f8f9fa;
-                margin: 0;
-              }
-              .container {
-                background: white;
-                padding: 40px;
-                border-radius: 10px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                max-width: 500px;
-                margin: 0 auto;
-              }
-              .strava-logo {
-                color: #FC4C02;
-                font-weight: bold;
-              }
-              .footer {
-                margin-top: 30px;
-                font-size: 12px;
-                color: #666;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <h1>✅ Authorization Successful!</h1>
-              <p>Welcome <strong>${athlete.firstname} ${athlete.lastname}</strong>!</p>
-              <p>Your Strava account has been successfully linked to the Strava Running Bot.</p>
-              <p>You can now close this window and return to Discord.</p>
-              <div class="footer">
-                <p class="strava-logo">Powered by Strava</p>
-                <p>This application uses the Strava API to access your public activities.</p>
-              </div>
-            </div>
-          </body>
-        </html>
-      `);
+      res.send(this._generateAuthResponseHTML(true, athlete));
 
     } catch (error) {
       logger.strava.error('Error in Strava callback', {
@@ -363,58 +319,7 @@ class WebhookServer {
         state: req.query.state,
         stack: error.stack
       });
-      res.status(500).send(`
-        <html>
-          <head>
-            <title>Strava Authorization Failed</title>
-            <style>
-              body { 
-                font-family: Arial, sans-serif; 
-                text-align: center; 
-                padding: 50px; 
-                background-color: #f8f9fa;
-                margin: 0;
-              }
-              .container {
-                background: white;
-                padding: 40px;
-                border-radius: 10px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                max-width: 500px;
-                margin: 0 auto;
-              }
-              .strava-logo {
-                color: #FC4C02;
-                font-weight: bold;
-              }
-              .footer {
-                margin-top: 30px;
-                font-size: 12px;
-                color: #666;
-              }
-              .error {
-                background-color: #f8d7da;
-                color: #721c24;
-                padding: 10px;
-                border-radius: 5px;
-                margin: 10px 0;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <h1>❌ Authorization Failed</h1>
-              <p>There was an error linking your Strava account.</p>
-              <p>Please try again or contact support.</p>
-              <div class="error">Error: ${error.message}</div>
-              <div class="footer">
-                <p class="strava-logo">Powered by Strava</p>
-                <p>This application uses the Strava API to access your public activities.</p>
-              </div>
-            </div>
-          </body>
-        </html>
-      `);
+      res.status(500).send(this._generateAuthResponseHTML(false, null, error.message));
     }
   }
 
@@ -442,29 +347,33 @@ class WebhookServer {
     }
   }
 
+  // Helper method to handle member removal responses
+  _handleMemberRemovalResponse(res, removedMember, errorContext, failureMessage) {
+    if (removedMember) {
+      const memberName = removedMember.discordUser 
+        ? removedMember.discordUser.displayName 
+        : `${removedMember.athlete.firstname} ${removedMember.athlete.lastname}`;
+      
+      res.json({
+        success: true,
+        message: `Removed member: ${memberName}`,
+        member: {
+          athleteId: removedMember.athlete.id,
+          name: memberName,
+          discordUserId: removedMember.discordUserId
+        }
+      });
+    } else {
+      res.status(404).json({ error: 'Member not found' });
+    }
+  }
+
   // Remove member by athlete ID
   async removeMember(req, res) {
     try {
       const { athleteId } = req.params;
       const removedMember = await this.activityProcessor.memberManager.removeMember(athleteId);
-      
-      if (removedMember) {
-        const memberName = removedMember.discordUser 
-          ? removedMember.discordUser.displayName 
-          : `${removedMember.athlete.firstname} ${removedMember.athlete.lastname}`;
-        
-        res.json({
-          success: true,
-          message: `Removed member: ${memberName}`,
-          member: {
-            athleteId: removedMember.athlete.id,
-            name: memberName,
-            discordUserId: removedMember.discordUserId
-          }
-        });
-      } else {
-        res.status(404).json({ error: 'Member not found' });
-      }
+      this._handleMemberRemovalResponse(res, removedMember);
     } catch (error) {
       logger.member.error('Error removing member', {
         athleteId: req.params.athleteId,
@@ -479,24 +388,7 @@ class WebhookServer {
     try {
       const { discordId } = req.params;
       const removedMember = await this.activityProcessor.memberManager.removeMemberByDiscordId(discordId);
-      
-      if (removedMember) {
-        const memberName = removedMember.discordUser 
-          ? removedMember.discordUser.displayName 
-          : `${removedMember.athlete.firstname} ${removedMember.athlete.lastname}`;
-        
-        res.json({
-          success: true,
-          message: `Removed member: ${memberName}`,
-          member: {
-            athleteId: removedMember.athlete.id,
-            name: memberName,
-            discordUserId: removedMember.discordUserId
-          }
-        });
-      } else {
-        res.status(404).json({ error: 'Member not found' });
-      }
+      this._handleMemberRemovalResponse(res, removedMember);
     } catch (error) {
       logger.member.error('Error removing member by Discord ID', {
         discordId: req.params.discordId,
@@ -506,20 +398,24 @@ class WebhookServer {
     }
   }
 
+  // Helper method to handle member status change responses
+  _handleMemberStatusResponse(res, success, athleteId, action, pastTense) {
+    if (success) {
+      res.json({
+        success: true,
+        message: `${pastTense} member with athlete ID: ${athleteId}`
+      });
+    } else {
+      res.status(404).json({ error: 'Member not found' });
+    }
+  }
+
   // Deactivate member
   async deactivateMember(req, res) {
     try {
       const { athleteId } = req.params;
       const success = await this.activityProcessor.memberManager.deactivateMember(athleteId);
-      
-      if (success) {
-        res.json({
-          success: true,
-          message: `Deactivated member with athlete ID: ${athleteId}`
-        });
-      } else {
-        res.status(404).json({ error: 'Member not found' });
-      }
+      this._handleMemberStatusResponse(res, success, athleteId, 'deactivating', 'Deactivated');
     } catch (error) {
       logger.member.error('Error deactivating member', {
         athleteId: req.params.athleteId,
@@ -534,21 +430,95 @@ class WebhookServer {
     try {
       const { athleteId } = req.params;
       const success = await this.activityProcessor.memberManager.reactivateMember(athleteId);
-      
-      if (success) {
-        res.json({
-          success: true,
-          message: `Reactivated member with athlete ID: ${athleteId}`
-        });
-      } else {
-        res.status(404).json({ error: 'Member not found' });
-      }
+      this._handleMemberStatusResponse(res, success, athleteId, 'reactivating', 'Reactivated');
     } catch (error) {
       logger.member.error('Error reactivating member', {
         athleteId: req.params.athleteId,
         error: error.message
       });
       res.status(500).json({ error: 'Failed to reactivate member' });
+    }
+  }
+
+  // Helper method to generate HTML responses for Strava authorization
+  _generateAuthResponseHTML(isSuccess, athlete = null, errorMessage = null) {
+    const baseStyles = `
+      body { 
+        font-family: Arial, sans-serif; 
+        text-align: center; 
+        padding: 50px; 
+        background-color: #f8f9fa;
+        margin: 0;
+      }
+      .container {
+        background: white;
+        padding: 40px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        max-width: 500px;
+        margin: 0 auto;
+      }
+      .strava-logo {
+        color: #FC4C02;
+        font-weight: bold;
+      }
+      .footer {
+        margin-top: 30px;
+        font-size: 12px;
+        color: #666;
+      }`;
+
+    if (isSuccess) {
+      return `
+        <html>
+          <head>
+            <title>Strava Authorization Complete</title>
+            <style>${baseStyles}</style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>✅ Authorization Successful!</h1>
+              <p>Welcome <strong>${athlete.firstname} ${athlete.lastname}</strong>!</p>
+              <p>Your Strava account has been successfully linked to the Strava Running Bot.</p>
+              <p>You can now close this window and return to Discord.</p>
+              <div class="footer">
+                <p class="strava-logo">Powered by Strava</p>
+                <p>This application uses the Strava API to access your public activities.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+    } else {
+      return `
+        <html>
+          <head>
+            <title>Strava Authorization Failed</title>
+            <style>
+              ${baseStyles}
+              .error {
+                background-color: #f8d7da;
+                color: #721c24;
+                padding: 10px;
+                border-radius: 5px;
+                margin: 10px 0;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>❌ Authorization Failed</h1>
+              <p>There was an error linking your Strava account.</p>
+              <p>Please try again or contact support.</p>
+              <div class="error">Error: ${errorMessage}</div>
+              <div class="footer">
+                <p class="strava-logo">Powered by Strava</p>
+                <p>This application uses the Strava API to access your public activities.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
     }
   }
 

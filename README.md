@@ -514,12 +514,12 @@ node utils/setup.js list-webhooks
 
 ### Key Dependencies
 
-- **Node.js 22** - Latest LTS with improved performance and security
-- **Discord.js 14** - Modern Discord API wrapper with slash commands
-- **Express 4** - Web framework for webhook server and API endpoints
-- **chalk 5** - Enhanced terminal colors with ESM support
-- **dotenv 17** - Improved environment variable management
-- **node-cron 4** - Advanced task scheduling capabilities
+- **Node.js** - Latest LTS with improved performance and security
+- **Discord.js** - Modern Discord API wrapper with slash commands
+- **Express** - Web framework for webhook server and API endpoints
+- **chalk** - Enhanced terminal colors with ESM support
+- **dotenv** - Improved environment variable management
+- **node-cron** - Advanced task scheduling capabilities
 - **axios** - HTTP client for API requests
 - **nodemon** - Development auto-restart utility
 

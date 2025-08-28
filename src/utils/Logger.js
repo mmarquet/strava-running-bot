@@ -221,7 +221,14 @@ class Logger {
       'PATCH': chalk.magenta
     };
 
-    const statusColor = statusCode >= 400 ? chalk.red : statusCode >= 300 ? chalk.yellow : chalk.green;
+    let statusColor;
+    if (statusCode >= 400) {
+      statusColor = chalk.red;
+    } else if (statusCode >= 300) {
+      statusColor = chalk.yellow;
+    } else {
+      statusColor = chalk.green;
+    }
     const formattedMethod = (methodColor[method] || chalk.white)(method.padEnd(6));
     const formattedStatus = statusColor(statusCode);
     const formattedTime = responseTime ? chalk.gray(`${responseTime}ms`) : '';

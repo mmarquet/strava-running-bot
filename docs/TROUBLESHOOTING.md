@@ -516,7 +516,7 @@ iostat -x 1 5
 1. Resource Constraints
 
    ```bash
-   # Increase Docker memory limit in docker-compose.yml
+   # Increase Docker memory limit in docker/docker-compose.yml
    # Increase CPU allocation
    # Monitor resource usage patterns
    
@@ -650,7 +650,7 @@ docker-compose logs --tail=1000 strava-running-bot > /tmp/recent.log
 echo "" > /var/lib/docker/containers/*/strava-running-bot*-json.log
 
 # Set up log rotation
-# Add to docker-compose.yml:
+# Add to docker/docker-compose.yml:
 logging:
   driver: "json-file"
   options:
@@ -695,14 +695,14 @@ netstat -tulpn | grep 3000
    # Rebuild without cache
    docker-compose build --no-cache strava-running-bot
    
-   # Check Dockerfile syntax
+   # Check docker/Dockerfile syntax
    docker build -t test .
    ```
 
 2. Port Conflicts
 
    ```bash
-   # Change port in docker-compose.yml
+   # Change port in docker/docker-compose.yml
    ports:
      - "3001:3000"  # Use different external port
    
@@ -968,7 +968,7 @@ done
 #### Advanced Monitoring
 
 ```yaml
-# Add Prometheus monitoring to docker-compose.yml
+# Add Prometheus monitoring to docker/docker-compose.yml
 prometheus:
   image: prom/prometheus
   ports:

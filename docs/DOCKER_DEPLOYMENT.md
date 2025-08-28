@@ -4,8 +4,8 @@ This directory contains all the necessary files to deploy the Strava Running Bot
 
 ## 📁 Files Overview
 
-- `Dockerfile` - Container image definition
-- `docker-compose.yml` - Multi-container deployment configuration
+- `docker/Dockerfile` - Container image definition
+- `docker/docker-compose.yml` - Multi-container deployment configuration
 - `.dockerignore` - Files to exclude from Docker build context
 - `README.md` - This deployment guide
 
@@ -66,7 +66,7 @@ ENCRYPTION_KEY=your_32_character_encryption_key
 
 ### Port Configuration
 
-The bot runs on port 3000 by default. You can change this in the docker-compose.yml:
+The bot runs on port 3000 by default. You can change this in the docker/docker-compose.yml:
 
 ```yaml
 ports:
@@ -75,7 +75,7 @@ ports:
 
 ### Resource Limits
 
-Adjust resource limits in docker-compose.yml based on your NAS capabilities:
+Adjust resource limits in docker/docker-compose.yml based on your NAS capabilities:
 
 ```yaml
 deploy:
@@ -187,7 +187,7 @@ docker run --rm -v strava-running-bot_bot_data:/data -v $(pwd):/backup alpine ta
    # Check what's using port 3000
    netstat -tulpn | grep 3000
    
-   # Change port in docker-compose.yml
+   # Change port in docker/docker-compose.yml
    ```
 
 4. **Memory issues**
@@ -196,7 +196,7 @@ docker run --rm -v strava-running-bot_bot_data:/data -v $(pwd):/backup alpine ta
    # Check container resources
    docker stats strava-running-bot
    
-   # Adjust limits in docker-compose.yml
+   # Adjust limits in docker/docker-compose.yml
    ```
 
 ### Container Shell Access
@@ -236,7 +236,7 @@ docker-compose exec strava-running-bot npm run --help
 For production with HTTPS, consider using nginx:
 
 ```yaml
-# Add to docker-compose.yml
+# Add to docker/docker-compose.yml
 nginx:
   image: nginx:alpine
   ports:

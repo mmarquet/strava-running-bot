@@ -85,9 +85,9 @@ docker-compose restart strava-running-bot
 
 ### Docker Configuration
 
-#### Dockerfile Optimization
+#### docker/Dockerfile Optimization
 
-The included Dockerfile is optimized for production:
+The included docker/Dockerfile is optimized for production:
 
 - **Multi-stage build** for smaller final image
 - **Non-root user** for security
@@ -97,7 +97,7 @@ The included Dockerfile is optimized for production:
 
 #### Resource Limits
 
-Adjust in `docker-compose.yml`:
+Adjust in `docker/docker-compose.yml`:
 
 ```yaml
 deploy:
@@ -268,7 +268,7 @@ sudo ufw allow 3000/tcp
 #### Container Security
 
 ```yaml
-# Additional security options in docker-compose.yml
+# Additional security options in docker/docker-compose.yml
 security_opt:
   - no-new-privileges:true
   - seccomp:unconfined
@@ -425,7 +425,7 @@ sudo docker-compose ps
 
 1. Install **Container Station**
 2. Create **Docker Compose project**
-3. Upload **docker-compose.yml**
+3. Upload **docker/docker-compose.yml**
 4. Configure **environment variables**
 5. Deploy **stack**
 
@@ -558,7 +558,7 @@ sudo certbot certificates
 **Prometheus + Grafana Setup:**
 
 ```yaml
-# Add to docker-compose.yml
+# Add to docker/docker-compose.yml
 prometheus:
   image: prom/prometheus
   ports:
@@ -590,7 +590,7 @@ sudo tee /etc/logrotate.d/strava-running-bot <<EOF
     notifempty
     sharedscripts
     postrotate
-        docker-compose -f /opt/strava-running-bot/docker-compose.yml restart strava-running-bot
+        docker-compose -f /opt/strava-running-bot/docker/docker-compose.yml restart strava-running-bot
     endscript
 }
 EOF
@@ -601,7 +601,7 @@ EOF
 **ELK Stack Example:**
 
 ```yaml
-# Add to docker-compose.yml
+# Add to docker/docker-compose.yml
 elasticsearch:
   image: docker.elastic.co/elasticsearch/elasticsearch:7.14.0
   environment:

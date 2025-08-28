@@ -468,4 +468,17 @@ During this session, multiple todo lists were managed to track progress:
 
 ---
 
+## 📝 Development Guidelines
+
+### **README.md Architecture Updates**
+
+**IMPORTANT**: Whenever you update the project architecture (add/remove/move files or directories), you MUST update the directory structure section in README.md (around lines 340-370). This ensures the documentation accurately reflects the current codebase organization.
+
+**Files to update when architecture changes:**
+- `README.md` - Project structure section
+- Any relevant documentation in `docs/` folder
+- Update import paths if files are moved
+
+---
+
 *This bot represents a complete, production-ready application that has been optimized and enhanced through multiple development sessions, showcasing both initial development and professional-grade refactoring practices.*

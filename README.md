@@ -1,10 +1,10 @@
 # Strava Running Bot 🏃‍♂️
 
-A comprehensive Discord bot that automatically posts Strava activities from your running team members to a dedicated Discord channel. Built with real-time webhooks, rich activity displays, and complete team management functionality. This bot has been built from the ground up with Claude Code. Work in progress.
+A comprehensive Discord bot that automatically posts Strava activities from your running team members to a dedicated Discord channel. Built with real-time webhooks, rich activity displays, and complete team management functionality.
 
 ![Discord Bot](https://img.shields.io/badge/Discord-Bot-5865F2?style=for-the-badge&logo=discord&logoColor=white)
 ![Strava](https://img.shields.io/badge/Strava-API-FC4C02?style=for-the-badge&logo=strava&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js-24+-339933?style=for-the-badge&logo=node.js&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-LTS-339933?style=for-the-badge&logo=node.js&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=mmarquet_strava-running-bot&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=mmarquet_strava-running-bot)
@@ -13,7 +13,7 @@ A comprehensive Discord bot that automatically posts Strava activities from your
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=mmarquet_strava-running-bot&metric=bugs)](https://sonarcloud.io/summary/new_code?id=mmarquet_strava-running-bot)
 [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=mmarquet_strava-running-bot&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=mmarquet_strava-running-bot)
 
-## �🎯 Features
+## 🎯 Features
 
 ### 🏃 **Real-time Activity Posting**
 
@@ -60,7 +60,7 @@ A comprehensive Discord bot that automatically posts Strava activities from your
 
 ### Prerequisites
 
-- Node.js 22.0 or higher
+- Node.js (check package.json for the exact version as its subject to change in the future)
 - Discord bot token and server permissions
 - Strava API application credentials
 - Public domain/server for webhooks (production only)
@@ -70,7 +70,7 @@ A comprehensive Discord bot that automatically posts Strava activities from your
 1. **Clone and Setup**
 
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/mmarquet/strava-running-bot.git
    cd strava-running-bot
    npm install
    ```
@@ -91,7 +91,7 @@ A comprehensive Discord bot that automatically posts Strava activities from your
 4. **Deploy with Docker** (Optional)
 
    ```bash
-   docker-compose up -d
+   docker compose -f docker/docker-compose.yml up -d
    ```
 
 > **💡 Need help getting credentials?** Follow the [Complete Setup Guide](#-complete-setup-guide) below for detailed instructions.
@@ -195,7 +195,7 @@ A comprehensive Discord bot that automatically posts Strava activities from your
 #### Step 5: Note Your Rate Limits
 
 - Strava API has rate limits: **100 requests per 15 minutes**, **1000 requests per day**
-- The bot automatically handles these limits with proper throttling
+- The bot automatically handles these limits with a 20%/10% safety margin and proper throttling
 
 ### 3. Environment Configuration
 
@@ -272,13 +272,6 @@ node utils/setup.js delete-webhook SUBSCRIPTION_ID
 node utils/setup.js validate-webhook
 ```
 
-#### Troubleshooting Webhooks
-
-- **403 Forbidden**: Check that your `STRAVA_WEBHOOK_VERIFY_TOKEN` matches
-- **404 Not Found**: Verify your server is running and accessible
-- **SSL Certificate Error**: Ensure your domain has valid HTTPS
-- **No webhook events**: Check Strava API rate limits and webhook subscription status
-
 ## 🎮 Discord Commands
 
 ### User Commands
@@ -352,7 +345,8 @@ strava-running-bot/
 │   │   ├── ActivityFormatter.js # Activity data formatting
 │   │   ├── DiscordUtils.js     # Discord utility functions
 │   │   ├── EmbedBuilder.js     # Discord embed creation
-│   │   └── Logger.js           # Logging utilities
+│   │   ├── Logger.js           # Logging utilities
+│   │   └── RateLimiter.js      # Strava API rate limiting
 │   └── index.js                # Application entry point
 ├── config/
 │   └── config.js               # Configuration management
@@ -361,8 +355,9 @@ strava-running-bot/
 ├── data/                       # Member data storage (encrypted)
 ├── logs/                       # Application logs
 ├── .env.example                # Environment variables template
-├── docker-compose.yml          # Docker deployment configuration
-├── Dockerfile                  # Container image definition
+├── docker/
+│   ├── docker-compose.yml      # Docker deployment configuration
+│   └── Dockerfile              # Container image definition
 └── README.md                   # This documentation
 ```
 
@@ -371,37 +366,50 @@ strava-running-bot/
 #### **ActivityProcessor**
 
 - Central orchestrator for all bot operations
-- Handles activity processing pipeline
+- Handles activity processing pipeline with queuing system
 - Manages Discord and Strava integrations
-- Coordinates member management
+- Coordinates member management and activity filtering
+- Processes webhook events with delayed posting
 
 #### **DiscordBot**
 
-- Discord.js client wrapper
-- Slash command registration and handling
-- Rich embed generation for activities
-- Event handling and error management
+- Discord.js v14 client wrapper with full intent support
+- Slash command registration and autocomplete handling
+- Rich embed generation using modular EmbedBuilder
+- Google Maps route visualization integration
+- Error handling with graceful client destruction
 
 #### **StravaAPI**
 
-- Complete Strava API wrapper
-- OAuth2 authentication flow
-- Activity data processing
-- Rate limiting and error handling
+- Complete Strava API wrapper with OAuth2 flow
+- Automatic rate limiting (80/15min, 900/day with safety margins)
+- Activity data processing with GAP calculations
+- Token refresh and authentication management
+- Webhook signature verification for security
 
 #### **MemberManager**
 
-- Secure member data storage with encryption
-- Token management and refresh
-- Member lifecycle operations
-- Discord user mapping
+- Secure member data storage with AES-256 encryption
+- JSON-based persistent storage with atomic writes
+- Token management with automatic refresh
+- Member lifecycle operations (register/deactivate/remove)
+- Discord user mapping and profile integration
 
 #### **WebhookServer**
 
-- Express.js server for webhooks and API
-- Strava webhook event processing
-- Member management endpoints
-- Health and status monitoring
+- Express.js server with comprehensive middleware
+- Strava webhook event processing with signature validation
+- RESTful member management API endpoints
+- OAuth callback handling with HTML responses
+- Health monitoring and error handling with proper status codes
+
+#### **Utility Components**
+
+- **RateLimiter**: Strava API compliance with request queuing
+- **ActivityFormatter**: Distance, time, and pace calculations
+- **EmbedBuilder**: Modular Discord embed creation system
+- **DiscordUtils**: User ID parsing and utility functions
+- **Logger**: Structured logging with category-based output
 
 ## 🔧 Configuration Options
 
@@ -414,18 +422,25 @@ strava-running-bot/
 | `STRAVA_CLIENT_ID` | ✅ | Strava API client ID | - |
 | `STRAVA_CLIENT_SECRET` | ✅ | Strava API client secret | - |
 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | ✅ | Webhook verification token | - |
-| `ENCRYPTION_KEY` | ✅ | 32-byte hex encryption key | - |
+| `ENCRYPTION_KEY` | ✅ | 32-byte hex encryption key for member data | - |
+| `BASE_URL` | ✅* | Public URL for webhooks (production only) | `http://localhost:3000` |
 | `PORT` | ❌ | Server port | `3000` |
 | `NODE_ENV` | ❌ | Environment mode | `development` |
-| `GOOGLE_MAPS_API_KEY` | ❌ | Google Maps API key for route maps | - |
+| `LOG_LEVEL` | ❌ | Logging level (DEBUG, INFO, WARN, ERROR) | `INFO` |
+| `POST_DELAY_MINUTES` | ❌ | Delay before posting activities (minutes) | `15` |
+| `GOOGLE_MAPS_API_KEY` | ❌ | Google Maps API key for route visualization | - |
+
+> **Note**: `BASE_URL` is required for production deployments but optional for local development.
 
 ### Application Settings
 
-- **Activity Filters**: Automatically filters activities older than 24 hours
-- **Rate Limiting**: Respects Strava API rate limits (100 requests/15min)
-- **Token Refresh**: Automatic token refresh before expiration
-- **Data Persistence**: Encrypted member data stored in JSON files
-- **Error Recovery**: Automatic retry mechanisms for failed operations
+- **Activity Filters**: Automatically filters activities without distance (weight training, etc.) and processes recent activities
+- **Rate Limiting**: Conservative Strava API limits (80 requests/15min, 900/day) with request queuing and 20%/10% safety margin
+- **Posting Delay**: Configurable delay before posting activities (default: 15 minutes) to allow for activity completion
+- **Route Visualization**: Google Maps integration for GPS route display in Discord embeds
+- **Token Management**: Automatic OAuth2 token refresh with secure AES-256 encrypted storage
+- **Data Persistence**: Atomic JSON file operations with backup and recovery mechanisms
+- **Error Handling**: Comprehensive error recovery with graceful degradation and logging
 
 ## 🐳 Docker Deployment
 
@@ -433,13 +448,13 @@ strava-running-bot/
 
 ```bash
 # Start with Docker Compose
-docker-compose up -d
+docker compose -f docker/docker-compose.yml up -d
 
 # View logs
-docker-compose logs -f
+docker compose -f docker/docker-compose.yml logs -f
 
 # Check status
-docker-compose ps
+docker compose -f docker/docker-compose.yml ps
 ```
 
 ### Production Deployment
@@ -447,12 +462,12 @@ docker-compose ps
 For production deployment on a NAS or server:
 
 1. **Configure Environment**: Set `NODE_ENV=production` in `.env`
-2. **Resource Limits**: Adjust memory/CPU limits in `docker-compose.yml`
+2. **Resource Limits**: Adjust memory/CPU limits in `docker/docker-compose.yml`
 3. **Domain Setup**: Configure domain and HTTPS for webhooks
 4. **Monitoring**: Set up log monitoring and alerting
 5. **Backups**: Regular backup of member data volume
 
-See [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md) for detailed Docker deployment instructions.
+See [docs/DOCKER_DEPLOYMENT.md](./docs/DOCKER_DEPLOYMENT.md) for detailed Docker deployment instructions.
 
 ## 📊 Monitoring & Maintenance
 
@@ -466,7 +481,7 @@ curl http://localhost:3000/health
 curl http://localhost:3000/members
 
 # Check Docker health
-docker-compose ps
+docker compose -f docker/docker-compose.yml ps
 ```
 
 ### Logs
@@ -476,10 +491,10 @@ docker-compose ps
 npm run dev
 
 # Docker
-docker-compose logs -f
+docker compose -f docker/docker-compose.yml logs -f
 
 # Specific timeframe
-docker-compose logs --since="1h"
+docker compose -f docker/docker-compose.yml logs --since="1h"
 ```
 
 ### Maintenance Tasks
@@ -565,7 +580,7 @@ node utils/setup.js list-webhooks
 curl http://localhost:3000/health
 
 # View logs
-docker-compose logs -f
+docker compose -f docker/docker-compose.yml logs -f
 
 # Verify Discord permissions
 # Check bot invite URL and server permissions
@@ -591,7 +606,7 @@ node utils/setup.js list-webhooks
 curl http://localhost:3000/members
 
 # Check webhook logs
-docker-compose logs -f | grep webhook
+docker compose -f docker/docker-compose.yml logs -f | grep webhook
 ```
 
 #### Token Refresh Errors
@@ -604,9 +619,16 @@ curl http://localhost:3000/members
 # Members may need to re-authorize
 ```
 
+#### Webhooks
+
+- **403 Forbidden**: Check that your `STRAVA_WEBHOOK_VERIFY_TOKEN` matches
+- **404 Not Found**: Verify your server is running and accessible
+- **SSL Certificate Error**: Ensure your domain has valid HTTPS
+- **No webhook events**: Check Strava API rate limits and webhook subscription status
+
 ### Debug Mode
 
-Enable debug logging by setting `NODE_ENV=development` in your `.env` file.
+Enable debug logging by setting `LOG_LEVEL=DEBUG` in your `.env` file.
 
 ### Support
 

@@ -171,7 +171,7 @@ Status: **PRODUCTION-READY**
 **Configuration Security:**
 
 - Environment-based configuration
-- No secrets in docker-compose.yml
+- No secrets in docker/docker-compose.yml
 - Proper file permissions in container
 - Security headers considerations documented
 

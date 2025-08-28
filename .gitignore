@@ -50,3 +50,6 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Local docs
+Code_Review.md

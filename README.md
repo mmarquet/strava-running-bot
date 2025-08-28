@@ -4,7 +4,7 @@ A comprehensive Discord bot that automatically posts Strava activities from your
 
 ![Discord Bot](https://img.shields.io/badge/Discord-Bot-5865F2?style=for-the-badge&logo=discord&logoColor=white)
 ![Strava](https://img.shields.io/badge/Strava-API-FC4C02?style=for-the-badge&logo=strava&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js-22+-339933?style=for-the-badge&logo=node.js&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-24+-339933?style=for-the-badge&logo=node.js&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=mmarquet_strava-running-bot&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=mmarquet_strava-running-bot)
@@ -514,12 +514,12 @@ node utils/setup.js list-webhooks
 
 ### Key Dependencies
 
-- **Node.js 22** - Latest LTS with improved performance and security
-- **Discord.js 14** - Modern Discord API wrapper with slash commands
-- **Express 4** - Web framework for webhook server and API endpoints
-- **chalk 5** - Enhanced terminal colors with ESM support
-- **dotenv 17** - Improved environment variable management
-- **node-cron 4** - Advanced task scheduling capabilities
+- **Node.js** - Latest LTS with improved performance and security
+- **Discord.js** - Modern Discord API wrapper with slash commands
+- **Express** - Web framework for webhook server and API endpoints
+- **chalk** - Enhanced terminal colors with ESM support
+- **dotenv** - Improved environment variable management
+- **node-cron** - Advanced task scheduling capabilities
 - **axios** - HTTP client for API requests
 - **nodemon** - Development auto-restart utility
 

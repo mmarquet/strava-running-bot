@@ -39,7 +39,7 @@ class ActivityEmbedBuilder {
    */
   static _setEmbedAuthorAndFooter(embed, activity, type) {
     let authorName = 'Unknown Athlete';
-    let iconURL = undefined;
+    let iconURL;
 
     if (activity.athlete) {
       if (activity.athlete.discordUser?.displayName) {

@@ -85,9 +85,9 @@ docker-compose restart strava-running-bot
 
 ### Docker Configuration
 
-#### docker/Dockerfile Optimization
+#### Dockerfile Optimization
 
-The included docker/Dockerfile is optimized for production:
+The included Dockerfile is optimized for production:
 
 - **Multi-stage build** for smaller final image
 - **Non-root user** for security

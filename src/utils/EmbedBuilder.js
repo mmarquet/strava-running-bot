@@ -144,7 +144,7 @@ class ActivityEmbedBuilder {
    * @param {Object} activity - Activity data
    */
   static _addMapImage(embed, activity) {
-    if (activity.map && activity.map.summary_polyline) {
+    if (activity.map?.summary_polyline) {
       const mapUrl = ActivityFormatter.generateStaticMapUrl(activity.map.summary_polyline);
       if (mapUrl) {
         embed.setImage(mapUrl);

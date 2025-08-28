@@ -449,12 +449,16 @@ class WebhookServer {
       const removedMember = await this.activityProcessor.memberManager.removeMember(athleteId);
       
       if (removedMember) {
+        const memberName = removedMember.discordUser 
+          ? removedMember.discordUser.displayName 
+          : `${removedMember.athlete.firstname} ${removedMember.athlete.lastname}`;
+        
         res.json({
           success: true,
-          message: `Removed member: ${removedMember.discordUser ? removedMember.discordUser.displayName : `${removedMember.athlete.firstname} ${removedMember.athlete.lastname}`}`,
+          message: `Removed member: ${memberName}`,
           member: {
             athleteId: removedMember.athlete.id,
-            name: removedMember.discordUser ? removedMember.discordUser.displayName : `${removedMember.athlete.firstname} ${removedMember.athlete.lastname}`,
+            name: memberName,
             discordUserId: removedMember.discordUserId
           }
         });
@@ -477,12 +481,16 @@ class WebhookServer {
       const removedMember = await this.activityProcessor.memberManager.removeMemberByDiscordId(discordId);
       
       if (removedMember) {
+        const memberName = removedMember.discordUser 
+          ? removedMember.discordUser.displayName 
+          : `${removedMember.athlete.firstname} ${removedMember.athlete.lastname}`;
+        
         res.json({
           success: true,
-          message: `Removed member: ${removedMember.discordUser ? removedMember.discordUser.displayName : `${removedMember.athlete.firstname} ${removedMember.athlete.lastname}`}`,
+          message: `Removed member: ${memberName}`,
           member: {
             athleteId: removedMember.athlete.id,
-            name: removedMember.discordUser ? removedMember.discordUser.displayName : `${removedMember.athlete.firstname} ${removedMember.athlete.lastname}`,
+            name: memberName,
             discordUserId: removedMember.discordUserId
           }
         });

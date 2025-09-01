@@ -118,7 +118,9 @@ describe('MemberManager', () => {
       });
       expect(logger.member.info).toHaveBeenCalledWith('Members loaded from storage', {
         count: 1,
-        memberIds: ['12345']
+        memberIds: ['12345'],
+        discordMappings: 1,
+        inconsistenciesFixed: 0
       });
     });
 
@@ -141,7 +143,7 @@ describe('MemberManager', () => {
       const error = new Error('Permission denied');
       fs.readFile.mockRejectedValue(error);
 
-      await memberManager.loadMembers();
+      await expect(memberManager.loadMembers()).rejects.toThrow('Permission denied');
 
       expect(logger.member.error).toHaveBeenCalledWith('Error loading members', error);
     });
@@ -149,7 +151,7 @@ describe('MemberManager', () => {
     it('should handle corrupt JSON data', async () => {
       fs.readFile.mockResolvedValue('invalid json');
 
-      await memberManager.loadMembers();
+      await expect(memberManager.loadMembers()).rejects.toThrow();
 
       expect(logger.member.error).toHaveBeenCalled();
     });
@@ -253,7 +255,7 @@ describe('MemberManager', () => {
 
   describe('registerMember', () => {
     beforeEach(() => {
-      jest.spyOn(memberManager, 'saveMembersAsync').mockImplementation(() => {});
+      jest.spyOn(memberManager, 'saveMembers').mockResolvedValue();
     });
 
     it('should register new member successfully', async () => {
@@ -273,7 +275,7 @@ describe('MemberManager', () => {
         isActive: true
       });
       expect(result.registeredAt).toBeDefined();
-      expect(memberManager.saveMembersAsync).toHaveBeenCalled();
+      expect(memberManager.saveMembers).toHaveBeenCalled();
       expect(logger.memberAction).toHaveBeenCalledWith(
         'REGISTERED',
         'John Doe',
@@ -423,7 +425,7 @@ describe('MemberManager', () => {
   describe('refreshMemberToken', () => {
     beforeEach(() => {
       memberManager.members.set('12345', mockMember);
-      jest.spyOn(memberManager, 'saveMembersAsync').mockImplementation(() => {});
+      jest.spyOn(memberManager, 'saveMembers').mockResolvedValue();
     });
 
     it('should refresh token successfully', async () => {
@@ -446,7 +448,7 @@ describe('MemberManager', () => {
       expect(token).toBe(newTokenData.access_token);
       expect(mockMember.tokens).toEqual(newTokenData);
       expect(mockMember.lastTokenRefresh).toBeDefined();
-      expect(memberManager.saveMembersAsync).toHaveBeenCalled();
+      expect(memberManager.saveMembers).toHaveBeenCalled();
       expect(logger.memberAction).toHaveBeenCalledWith(
         'TOKEN_REFRESHED',
         'Test User',
@@ -468,7 +470,7 @@ describe('MemberManager', () => {
         message: refreshError.message,
         timestamp: expect.any(String)
       });
-      expect(memberManager.saveMembersAsync).toHaveBeenCalled();
+      expect(memberManager.saveMembers).toHaveBeenCalled();
       expect(logger.memberAction).toHaveBeenCalledWith(
         'TOKEN_FAILED',
         'Test User',
@@ -483,7 +485,7 @@ describe('MemberManager', () => {
     beforeEach(() => {
       memberManager.members.set('12345', mockMember);
       memberManager.discordToStrava.set(mockMember.discordUserId, '12345');
-      jest.spyOn(memberManager, 'saveMembersAsync').mockImplementation(() => {});
+      jest.spyOn(memberManager, 'saveMembers').mockResolvedValue();
     });
 
     it('should remove member completely', async () => {
@@ -492,7 +494,7 @@ describe('MemberManager', () => {
       expect(removedMember).toEqual(mockMember);
       expect(memberManager.members.has('12345')).toBe(false);
       expect(memberManager.discordToStrava.has(mockMember.discordUserId)).toBe(false);
-      expect(memberManager.saveMembersAsync).toHaveBeenCalled();
+      expect(memberManager.saveMembers).toHaveBeenCalled();
       expect(logger.memberAction).toHaveBeenCalledWith(
         'REMOVED',
         'Test User',
@@ -532,7 +534,7 @@ describe('MemberManager', () => {
     beforeEach(() => {
       memberManager.members.set('12345', mockMember);
       memberManager.discordToStrava.set(mockMember.discordUserId, '12345');
-      jest.spyOn(memberManager, 'saveMembersAsync').mockImplementation(() => {});
+      jest.spyOn(memberManager, 'saveMembers').mockResolvedValue();
     });
 
     it('should deactivate member successfully', async () => {
@@ -542,7 +544,7 @@ describe('MemberManager', () => {
       expect(mockMember.isActive).toBe(false);
       expect(mockMember.deactivatedAt).toBeDefined();
       expect(memberManager.discordToStrava.has(mockMember.discordUserId)).toBe(false);
-      expect(memberManager.saveMembersAsync).toHaveBeenCalled();
+      expect(memberManager.saveMembers).toHaveBeenCalled();
       expect(logger.memberAction).toHaveBeenCalledWith(
         'DEACTIVATED',
         'Test User',
@@ -567,7 +569,7 @@ describe('MemberManager', () => {
         tokenError: { message: 'Token expired', timestamp: '2024-01-01T00:00:00Z' }
       };
       memberManager.members.set('12345', inactiveMember);
-      jest.spyOn(memberManager, 'saveMembersAsync').mockImplementation(() => {});
+      jest.spyOn(memberManager, 'saveMembers').mockResolvedValue();
     });
 
     it('should reactivate member successfully', async () => {
@@ -580,7 +582,7 @@ describe('MemberManager', () => {
       expect(member.deactivatedAt).toBeUndefined();
       expect(member.tokenError).toBeUndefined();
       expect(memberManager.discordToStrava.get(mockMember.discordUserId)).toBe('12345');
-      expect(memberManager.saveMembersAsync).toHaveBeenCalled();
+      expect(memberManager.saveMembers).toHaveBeenCalled();
       expect(logger.memberAction).toHaveBeenCalledWith(
         'REACTIVATED',
         'Test User',
@@ -709,6 +711,67 @@ describe('MemberManager', () => {
         active: 2,
         inactive: 1,
         recentRegistrations: 2 // Both recent member and inactive member registered within last week
+      });
+    });
+  });
+
+  describe('helper methods for race condition prevention', () => {
+    let memberManager;
+    let mockMember;
+
+    beforeEach(() => {
+      memberManager = new MemberManager();
+      mockMember = {
+        athlete: { id: 12345, firstname: 'Test', lastname: 'User' },
+        discordUserId: 'discord123',
+        isActive: true,
+        deactivatedAt: '2024-01-01',
+        tokenError: 'some error'
+      };
+      memberManager.discordToStrava.set('discord123', '12345');
+    });
+
+    describe('_createMemberBackup', () => {
+      it('should create correct backup of member state', () => {
+        const backup = memberManager._createMemberBackup(mockMember);
+        
+        expect(backup).toEqual({
+          wasActive: true,
+          oldDeactivatedAt: '2024-01-01',
+          oldTokenError: 'some error',
+          hadDiscordMapping: true
+        });
+      });
+    });
+
+    describe('_validateDiscordUserConflict', () => {
+      it('should pass validation when Discord user maps to same athlete', () => {
+        expect(() => {
+          memberManager._validateDiscordUserConflict(mockMember, '12345');
+        }).not.toThrow();
+      });
+
+      it('should throw error when Discord user maps to different athlete', () => {
+        memberManager.discordToStrava.set('discord123', '67890');
+        
+        expect(() => {
+          memberManager._validateDiscordUserConflict(mockMember, '12345');
+        }).toThrow('Discord user discord123 is already registered to athlete 67890');
+      });
+    });
+
+    describe('_applyReactivation', () => {
+      it('should apply reactivation changes correctly', () => {
+        mockMember.isActive = false;
+        memberManager.discordToStrava.delete('discord123');
+        
+        memberManager._applyReactivation(mockMember, '12345');
+        
+        expect(mockMember.isActive).toBe(true);
+        expect(mockMember.reactivatedAt).toBeDefined();
+        expect(mockMember.deactivatedAt).toBeUndefined();
+        expect(mockMember.tokenError).toBeUndefined();
+        expect(memberManager.discordToStrava.get('discord123')).toBe('12345');
       });
     });
   });

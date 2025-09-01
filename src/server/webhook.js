@@ -319,7 +319,7 @@ class WebhookServer {
         state: req.query.state,
         stack: error.stack
       });
-      res.status(500).send(this._generateAuthResponseHTML(false, null, error.message));
+      res.status(500).send(this._generateAuthResponseHTML(false, null, 'An error occurred during authorization'));
     }
   }
 
@@ -348,7 +348,7 @@ class WebhookServer {
   }
 
   // Helper method to handle member removal responses
-  _handleMemberRemovalResponse(res, removedMember, errorContext, failureMessage) {
+  _handleMemberRemovalResponse(res, removedMember, _errorContext, _failureMessage) {
     if (removedMember) {
       const memberName = removedMember.discordUser 
         ? removedMember.discordUser.displayName 

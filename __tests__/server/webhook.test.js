@@ -465,7 +465,7 @@ describe('WebhookServer', () => {
           .expect(500);
 
         expect(response.text).toContain('Authorization Failed');
-        expect(response.text).toContain(error.message);
+        expect(response.text).toContain('An error occurred during authorization');
         expect(logger.strava.error).toHaveBeenCalledWith(
           'Error in Strava callback',
           expect.objectContaining({ error: error.message })

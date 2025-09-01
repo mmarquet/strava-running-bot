@@ -348,7 +348,7 @@ class WebhookServer {
   }
 
   // Helper method to handle member removal responses
-  _handleMemberRemovalResponse(res, removedMember, errorContext, failureMessage) {
+  _handleMemberRemovalResponse(res, removedMember, _errorContext, _failureMessage) {
     if (removedMember) {
       const memberName = removedMember.discordUser 
         ? removedMember.discordUser.displayName 

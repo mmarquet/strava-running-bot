@@ -714,4 +714,65 @@ describe('MemberManager', () => {
       });
     });
   });
+
+  describe('helper methods for race condition prevention', () => {
+    let memberManager;
+    let mockMember;
+
+    beforeEach(() => {
+      memberManager = new MemberManager();
+      mockMember = {
+        athlete: { id: 12345, firstname: 'Test', lastname: 'User' },
+        discordUserId: 'discord123',
+        isActive: true,
+        deactivatedAt: '2024-01-01',
+        tokenError: 'some error'
+      };
+      memberManager.discordToStrava.set('discord123', '12345');
+    });
+
+    describe('_createMemberBackup', () => {
+      it('should create correct backup of member state', () => {
+        const backup = memberManager._createMemberBackup(mockMember);
+        
+        expect(backup).toEqual({
+          wasActive: true,
+          oldDeactivatedAt: '2024-01-01',
+          oldTokenError: 'some error',
+          hadDiscordMapping: true
+        });
+      });
+    });
+
+    describe('_validateDiscordUserConflict', () => {
+      it('should pass validation when Discord user maps to same athlete', () => {
+        expect(() => {
+          memberManager._validateDiscordUserConflict(mockMember, '12345');
+        }).not.toThrow();
+      });
+
+      it('should throw error when Discord user maps to different athlete', () => {
+        memberManager.discordToStrava.set('discord123', '67890');
+        
+        expect(() => {
+          memberManager._validateDiscordUserConflict(mockMember, '12345');
+        }).toThrow('Discord user discord123 is already registered to athlete 67890');
+      });
+    });
+
+    describe('_applyReactivation', () => {
+      it('should apply reactivation changes correctly', () => {
+        mockMember.isActive = false;
+        memberManager.discordToStrava.delete('discord123');
+        
+        memberManager._applyReactivation(mockMember, '12345');
+        
+        expect(mockMember.isActive).toBe(true);
+        expect(mockMember.reactivatedAt).toBeDefined();
+        expect(mockMember.deactivatedAt).toBeUndefined();
+        expect(mockMember.tokenError).toBeUndefined();
+        expect(memberManager.discordToStrava.get('discord123')).toBe('12345');
+      });
+    });
+  });
 });

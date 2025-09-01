@@ -319,7 +319,7 @@ class WebhookServer {
         state: req.query.state,
         stack: error.stack
       });
-      res.status(500).send(this._generateAuthResponseHTML(false, null, error.message));
+      res.status(500).send(this._generateAuthResponseHTML(false, null, 'An error occurred during authorization'));
     }
   }
 

@@ -222,11 +222,26 @@ class StravaAPI {
     return true;
   }
 
-  // Check if activity should be posted (filters)
-  // skipAgeFilter: if true, don't filter activities older than 24 hours (for /last command)
+  /**
+   * Determines if a Strava activity should be posted to Discord.
+   * 
+   * Activity Visibility Filtering:
+   * - Private activities (private: true) are filtered out for privacy
+   * - Followers-only activities (visibility: 'followers_only') are allowed
+   * - Public activities (visibility: 'everyone' or null) are allowed
+   * 
+   * This change allows team members to share activities with their followers
+   * while still respecting private activity settings.
+   * 
+   * @param {Object} activity - Strava activity object
+   * @param {Object} options - Filtering options
+   * @param {boolean} options.skipAgeFilter - If true, don't filter activities older than 24 hours (for /last command)
+   * @returns {boolean} - Whether the activity should be posted
+   */
   shouldPostActivity(activity, options = {}) {
     const { skipAgeFilter = false } = options;
-    // Skip if activity is not public (private or followers-only)
+    
+    // Filter out private activities - these should never be shared publicly
     if (activity.private === true) {
       logger.strava.debug('Skipping private activity', {
         name: activity.name,
@@ -236,19 +251,11 @@ class StravaAPI {
       return false;
     }
 
-    // Skip if activity is visible to followers only (not fully public)
-    // In Strava API, activities have visibility levels:
-    // - null/undefined or 'everyone' = public
-    // - 'followers_only' = visible to followers only  
-    // - private: true = private
-    if (activity.visibility === 'followers_only') {
-      logger.strava.debug('Skipping followers-only activity', {
-        name: activity.name,
-        visibility: activity.visibility,
-        activityId: activity.id
-      });
-      return false;
-    }
+    // Allow followers-only activities - team members can share with their followers
+    // Strava API visibility levels:
+    // - 'everyone' or null/undefined: public activities (allowed)
+    // - 'followers_only': visible to followers only (allowed as of this update)
+    // - private: true: private activities (filtered out above)
 
     // Skip if activity is hidden from home feed
     if (activity.hide_from_home === true) {

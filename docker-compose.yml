@@ -1,0 +1,60 @@
+version: '3.8'
+services:
+  strava-running-bot:
+    # Use prebuilt image if DOCKER_IMAGE is set, otherwise use build
+    image: ${DOCKER_IMAGE:-}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: strava-running-bot
+    restart: unless-stopped
+
+    # Environment variables (override with .env file)
+    environment:
+      - NODE_ENV=development
+      - PORT=${PORT:-3000}
+    
+    # Load environment variables from .env file
+    env_file:
+      - .env
+    
+    # Port mapping - use host PORT from .env (fallback to 3000)
+    ports:
+      - "${PORT:-3000}:3000"
+    
+    # Volume for persistent data storage
+    volumes:
+      # bind host folder (default ./data/bot_data) so you can inspect members.json on host
+      - ./data/data:/app/data:rw
+      - ./data/logs:/app/logs:rw
+    
+    # Health check (runs inside the container, use container PORT)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    
+    # Resource limits (adjust based on your NAS capabilities)
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+volumes: {}

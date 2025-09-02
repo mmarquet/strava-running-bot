@@ -1,0 +1,32 @@
+version: '3.8'
+services:
+  strava-running-bot:
+      image: "ghcr.io/${GITHUB_REPOSITORY_OWNER:-your-gh-user}/strava-running-bot:latest"
+      container_name: strava-running-bot
+      restart: unless-stopped
+      environment:
+        NODE_ENV: ${NODE_ENV:-production}
+        PORT: ${PORT:-3000}
+        DISCORD_TOKEN: ${DISCORD_TOKEN:-}
+        DISCORD_CHANNEL_ID: ${DISCORD_CHANNEL_ID:-}
+        STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID:-}
+        STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET:-}
+        STRAVA_WEBHOOK_VERIFY_TOKEN: ${STRAVA_WEBHOOK_VERIFY_TOKEN:-}
+        ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+        BASE_URL: ${BASE_URL}
+        LOG_LEVEL: ${LOG_LEVEL:-INFO}
+        POST_DELAY_MINUTES: ${POST_DELAY_MINUTES:-15}
+        GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
+      volumes:
+        # Map host directory (default ./data) to container data dir where members.json is stored
+        - "${DOCKER_PATH}bot_data/data:/app/data:rw"
+        # Map host logs dir to container logs
+        - "${DOCKER_PATH}bot_data/logs:/app/logs:rw"
+      ports:
+        - "${PORT:-3000}:3000"
+      healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:${PORT:-3000}/health"]
+        interval: 30s
+        timeout: 10s
+        retries: 3
+        start_period: 60s

@@ -559,11 +559,10 @@ describe('StravaAPI', () => {
         expect(logger.strava.debug).toHaveBeenCalledWith('Skipping private activity', expect.any(Object));
       });
 
-      it('should reject followers-only activities', () => {
+      it('should allow followers-only activities', () => {
         const followersOnlyActivity = { ...baseActivity, visibility: 'followers_only' };
         
-        expect(stravaAPI.shouldPostActivity(followersOnlyActivity)).toBe(false);
-        expect(logger.strava.debug).toHaveBeenCalledWith('Skipping followers-only activity', expect.any(Object));
+        expect(stravaAPI.shouldPostActivity(followersOnlyActivity)).toBe(true);
       });
 
       it('should allow activities with everyone visibility', () => {

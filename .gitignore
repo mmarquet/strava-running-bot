@@ -28,6 +28,10 @@ coverage/
 logs
 *.log
 
+# Data storage (consolidated to avoid redundancy)
+data/
+members.json
+
 # Runtime data
 tmp/
 temp/

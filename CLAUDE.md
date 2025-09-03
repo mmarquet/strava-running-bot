@@ -2,10 +2,15 @@
 
 ### **Development workflow**
 
-**MANDATORY**: You must always make sure you are not breaking anything when developping new features or modifying existing code. In order to do so, you must respect the following steps:
-- In case of a new feature or function, Write tests first then develop the new feature or function.
-- Run tests with 'npm run test': every single test must pass.
-- Check sonar scanner results with 'sonnar-scanner': the new lines of code must have at least 80% test coverage. 0 TOLERANCE for issues, security hotspots and code duplication. It must be ZERO no matter what
+**MANDATORY**: You must always make sure you are not breaking anything when developping new features or modifying existing code. In order to do so, you must respect the following workflow:
+- Verify you're on a dedicated branch for any changes you're about to make. If not, tell the user you are not sure you're on the good branch and ask him to do the following steps:
+   - checkout main
+   - git pull
+   - git switch -c feat/<new-feature-name>
+- In case you're developping a new feature or function, write tests first then develop the new code.
+- Run tests with 'npm run test': every single test must pass. If they don't, iterate until you fix every issues. Don't hardcore test so that they pass, you must write tests that actually check the behaviour of the code and cover all the potential edge cases you can identify.
+- Check sonar scanner results with 'sonnar-scanner': the new lines of code must have at least 80% test coverage (90% is encouraged, 100% is best but only if it doesn't ask too much work and it's not too complicated). 0 TOLERANCE for issues, security hotspots and code duplication. It must be ZERO no matter what. If you have issues, iterate until you have fixed them all. NEVER commit code when a sonar scan return issues.
+- Finally, before commiting, perform a deep, harsh, complete code review of every changes made in the current branch. Propose a plan for fixing them and if necessary, repeat this workflow that the new changes made are not breaking anything and are properly covered by tests.
 
 ### **README.md Architecture Updates**
 

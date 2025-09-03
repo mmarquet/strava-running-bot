@@ -196,7 +196,7 @@ class StravaAPI {
   // Calculate Grade Adjusted Pace (GAP) using streams data when available
   calculateGradeAdjustedPace(activity, streamsData = null) {
     if (!activity.distance || !activity.moving_time) {
-      return null;
+      return '-';
     }
 
     // Use streams data if available for accurate GAP calculation
@@ -216,7 +216,7 @@ class StravaAPI {
 
     // Fallback to simplified estimation when streams data is not available
     if (!activity.total_elevation_gain) {
-      return null;
+      return '-';
     }
 
     const distanceInKm = activity.distance / 1000;
@@ -231,6 +231,24 @@ class StravaAPI {
     const seconds = Math.round(gapInSecondsPerKm % 60);
     
     return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
+  }
+
+  // Helper method to fetch streams data and process activity (avoid duplicate code)
+  async processActivityWithStreams(activity, athlete, accessToken) {
+    let streamsData = null;
+    
+    try {
+      // Try to fetch streams data for accurate GAP calculation
+      streamsData = await this.getActivityStreams(activity.id, accessToken, ['grade_adjusted_distance']);
+    } catch (error) {
+      // Streams fetch failed - log but continue without streams data
+      logger.strava.debug('Failed to fetch activity streams for GAP calculation', {
+        activityId: activity.id,
+        error: error.message
+      });
+    }
+    
+    return this.processActivityData(activity, athlete, streamsData);
   }
 
   // Process activity data for Discord display

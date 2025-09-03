@@ -134,7 +134,7 @@ class ActivityQueue {
         ...member.athlete,
         discordUser: member.discordUser
       };
-      const processedActivity = this.activityProcessor.stravaAPI.processActivityData(activity, athleteWithDiscordInfo);
+      const processedActivity = await this.activityProcessor.stravaAPI.processActivityWithStreams(activity, athleteWithDiscordInfo, accessToken);
 
       // Post to Discord
       await this.activityProcessor.discordBot.postActivity(processedActivity);

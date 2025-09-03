@@ -480,7 +480,7 @@ describe('StravaAPI', () => {
       expect(gap).not.toBe('6:00/km'); // Should be slower than regular pace due to elevation
     });
 
-    it('should return null for activity without required data', () => {
+    it('should return "-" for activity without required data', () => {
       const incompleteActivity = {
         distance: 5000,
         moving_time: 1800
@@ -489,10 +489,10 @@ describe('StravaAPI', () => {
 
       const gap = stravaAPI.calculateGradeAdjustedPace(incompleteActivity);
 
-      expect(gap).toBeNull();
+      expect(gap).toBe('-');
     });
 
-    it('should return null for activity with zero distance', () => {
+    it('should return "-" for activity with zero distance', () => {
       const zeroDistanceActivity = {
         distance: 0,
         moving_time: 1800,
@@ -501,7 +501,7 @@ describe('StravaAPI', () => {
 
       const gap = stravaAPI.calculateGradeAdjustedPace(zeroDistanceActivity);
 
-      expect(gap).toBeNull();
+      expect(gap).toBe('-');
     });
 
     it('should handle streams data with empty grade_adjusted_distance', () => {

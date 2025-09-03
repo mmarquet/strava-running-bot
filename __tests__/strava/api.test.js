@@ -380,37 +380,111 @@ describe('StravaAPI', () => {
     });
   });
 
+  describe('getActivityStreams', () => {
+    it('should fetch activity streams successfully', async () => {
+      const activityId = 123456;
+      const accessToken = 'valid_token';
+      const mockStreamsData = {
+        grade_adjusted_distance: {
+          data: [0, 100, 250, 500, 1000, 1500, 2000],
+          series_type: 'distance',
+          original_size: 7,
+          resolution: 'high'
+        },
+        time: {
+          data: [0, 30, 75, 150, 300, 450, 600],
+          series_type: 'time',
+          original_size: 7,
+          resolution: 'high'
+        }
+      };
+
+      mockAxios.get.mockResolvedValue({ data: mockStreamsData });
+
+      const result = await stravaAPI.getActivityStreams(activityId, accessToken, ['grade_adjusted_distance', 'time']);
+
+      expect(mockAxios.get).toHaveBeenCalledWith(`${config.strava.baseUrl}/activities/${activityId}/streams`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        params: {
+          keys: 'grade_adjusted_distance,time',
+          key_by_type: true
+        }
+      });
+      expect(result).toEqual(mockStreamsData);
+    });
+
+    it('should handle streams fetch error', async () => {
+      const activityId = 123456;
+      const accessToken = 'invalid_token';
+
+      mockAxios.get.mockRejectedValue({
+        response: { status: 401, data: { message: 'Unauthorized' } }
+      });
+
+      await expect(stravaAPI.getActivityStreams(activityId, accessToken, ['grade_adjusted_distance']))
+        .rejects.toThrow(`Failed to fetch activity streams for ${activityId}`);
+    });
+
+    it('should handle default streams keys', async () => {
+      const activityId = 123456;
+      const accessToken = 'valid_token';
+
+      mockAxios.get.mockResolvedValue({ data: {} });
+
+      await stravaAPI.getActivityStreams(activityId, accessToken);
+
+      expect(mockAxios.get).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          params: {
+            keys: 'grade_adjusted_distance',
+            key_by_type: true
+          }
+        })
+      );
+    });
+  });
 
   describe('calculateGradeAdjustedPace', () => {
-    it('should calculate GAP using grade_adjusted_distance when available', () => {
+    it('should calculate GAP using streams data when available', () => {
       const activity = {
         distance: 5000, // 5km
         moving_time: 1800, // 30 minutes
-        grade_adjusted_distance: 5150 // 5150m grade-adjusted distance
+        total_elevation_gain: 250 // 250m elevation
       };
 
-      const gap = stravaAPI.calculateGradeAdjustedPace(activity);
+      const streamsData = {
+        grade_adjusted_distance: {
+          data: [0, 1000, 2000, 3000, 4000, 5150] // 5150m grade-adjusted distance
+        }
+      };
+
+      const gap = stravaAPI.calculateGradeAdjustedPace(activity, streamsData);
 
       // Expected: 1800 / (5150/1000) = 349.5 seconds per km = 5:50/km
       expect(gap).toBe('5:50/km');
     });
 
-    it('should return "-" when grade_adjusted_distance unavailable', () => {
+    it('should fallback to simplified calculation when streams unavailable', () => {
       const activity = {
         distance: 5000, // 5km
-        moving_time: 1800 // 30 minutes
+        moving_time: 1800, // 30 minutes
+        total_elevation_gain: 250 // 250m elevation
       };
 
       const gap = stravaAPI.calculateGradeAdjustedPace(activity);
 
-      expect(gap).toBe('-');
+      expect(gap).toMatch(/^\d{1,2}:\d{2}\/km$/);
+      expect(gap).not.toBe('6:00/km'); // Should be slower than regular pace due to elevation
     });
 
     it('should return "-" for activity without required data', () => {
       const incompleteActivity = {
         distance: 5000,
         moving_time: 1800
-        // missing grade_adjusted_distance
+        // missing total_elevation_gain
       };
 
       const gap = stravaAPI.calculateGradeAdjustedPace(incompleteActivity);
@@ -422,7 +496,7 @@ describe('StravaAPI', () => {
       const zeroDistanceActivity = {
         distance: 0,
         moving_time: 1800,
-        grade_adjusted_distance: 1000
+        total_elevation_gain: 100
       };
 
       const gap = stravaAPI.calculateGradeAdjustedPace(zeroDistanceActivity);
@@ -430,26 +504,42 @@ describe('StravaAPI', () => {
       expect(gap).toBe('-');
     });
 
-    it('should return "-" for activity with zero moving time', () => {
-      const zeroTimeActivity = {
+    it('should handle streams data with empty grade_adjusted_distance', () => {
+      const activity = {
         distance: 5000,
-        moving_time: 0,
-        grade_adjusted_distance: 5150
+        moving_time: 1800,
+        total_elevation_gain: 100
       };
 
-      const gap = stravaAPI.calculateGradeAdjustedPace(zeroTimeActivity);
+      const streamsData = {
+        grade_adjusted_distance: {
+          data: []
+        }
+      };
 
-      expect(gap).toBe('-');
+      const gap = stravaAPI.calculateGradeAdjustedPace(activity, streamsData);
+
+      // Should fallback to simplified calculation
+      expect(gap).toMatch(/^\d{1,2}:\d{2}\/km$/);
     });
 
     it('should calculate accurate GAP for real-world example', () => {
+      // Test case from /home/mat/GAP_calculation.txt
       const activity = {
         distance: 12600, // 12.6 km
         moving_time: 4200, // 1:10:00
-        grade_adjusted_distance: 12689 // 12689m grade-adjusted distance
+        total_elevation_gain: 19 // 19m elevation
       };
 
-      const gap = stravaAPI.calculateGradeAdjustedPace(activity);
+      const streamsData = {
+        grade_adjusted_distance: {
+          data: [0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 
+                 5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000, 9500, 10000, 
+                 10500, 11000, 11500, 12000, 12500, 12689] // 12689m grade-adjusted distance
+        }
+      };
+
+      const gap = stravaAPI.calculateGradeAdjustedPace(activity, streamsData);
 
       // Expected: 4200 / (12689/1000) = 331 seconds per km = 5:31/km
       expect(gap).toBe('5:31/km');
@@ -459,10 +549,16 @@ describe('StravaAPI', () => {
       const activity = {
         distance: 1000, // 1km
         moving_time: 305, // 5:05
-        grade_adjusted_distance: 1050 // 1050m grade-adjusted distance
+        total_elevation_gain: 1 // Minimal elevation
       };
 
-      const gap = stravaAPI.calculateGradeAdjustedPace(activity);
+      const streamsData = {
+        grade_adjusted_distance: {
+          data: [0, 250, 500, 750, 1050] // 1050m grade-adjusted distance
+        }
+      };
+
+      const gap = stravaAPI.calculateGradeAdjustedPace(activity, streamsData);
 
       // Expected: 305 / (1050/1000) = 290.48 seconds per km = 4:50/km
       expect(gap).toBe('4:50/km');
@@ -551,12 +647,13 @@ describe('StravaAPI', () => {
       });
     });
 
-    it('should calculate GAP without streams data', () => {
+    it('should pass streams data to GAP calculation', () => {
+      const mockStreamsData = { grade_adjusted_distance: { data: [0, 1000, 2000] } };
       const calculateGAPSpy = jest.spyOn(stravaAPI, 'calculateGradeAdjustedPace').mockReturnValue('5:30/km');
 
-      const result = stravaAPI.processActivityData(mockActivity, mockAthlete);
+      const result = stravaAPI.processActivityData(mockActivity, mockAthlete, mockStreamsData);
 
-      expect(calculateGAPSpy).toHaveBeenCalledWith(mockActivity);
+      expect(calculateGAPSpy).toHaveBeenCalledWith(mockActivity, mockStreamsData);
       expect(result.gap_pace).toBe('5:30/km');
       
       calculateGAPSpy.mockRestore();

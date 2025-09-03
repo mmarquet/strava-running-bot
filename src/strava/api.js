@@ -163,22 +163,92 @@ class StravaAPI {
     }, { operation: 'getActivity', activityId });
   }
 
+  // Get activity streams data
+  async getActivityStreams(activityId, accessToken, keys = ['grade_adjusted_distance']) {
+    logger.strava.debug('Fetching activity streams', { activityId, keys });
+    
+    return this.rateLimiter.executeRequest(async () => {
+      try {
+        const response = await axios.get(`${this.baseURL}/activities/${activityId}/streams`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          params: {
+            keys: keys.join(','),
+            key_by_type: true
+          }
+        });
 
-  // Calculate Grade Adjusted Pace (GAP) using grade_adjusted_distance from activity data
-  calculateGradeAdjustedPace(activity) {
+        return response.data;
+      } catch (error) {
+        logger.strava.error('Error fetching activity streams', {
+          activityId,
+          keys,
+          error: error.message,
+          response: error.response?.data,
+          status: error.response?.status
+        });
+        throw new Error(`Failed to fetch activity streams for ${activityId}`);
+      }
+    }, { operation: 'getActivityStreams', activityId, keys });
+  }
+
+  // Calculate Grade Adjusted Pace (GAP) using streams data when available
+  calculateGradeAdjustedPace(activity, streamsData = null) {
     if (!activity.distance || !activity.moving_time) {
       return '-';
     }
 
-    // Use grade_adjusted_distance if available
-    if (activity.grade_adjusted_distance) {
-      const gapInSecondsPerKm = activity.moving_time / (activity.grade_adjusted_distance / 1000);
-      const minutes = Math.floor(gapInSecondsPerKm / 60);
-      const seconds = Math.round(gapInSecondsPerKm % 60);
-      return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
+    // Use streams data if available for accurate GAP calculation
+    if (streamsData?.grade_adjusted_distance?.data?.length > 0) {
+      
+      const gradeAdjustedDistanceData = streamsData.grade_adjusted_distance.data;
+      const finalGradeAdjustedDistance = gradeAdjustedDistanceData[gradeAdjustedDistanceData.length - 1];
+      
+      if (finalGradeAdjustedDistance > 0) {
+        const gapInSecondsPerKm = activity.moving_time / (finalGradeAdjustedDistance / 1000);
+        const minutes = Math.floor(gapInSecondsPerKm / 60);
+        const seconds = Math.round(gapInSecondsPerKm % 60);
+        
+        return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
+      }
+    }
+
+    // Fallback to simplified estimation when streams data is not available
+    if (!activity.total_elevation_gain) {
+      return '-';
+    }
+
+    const distanceInKm = activity.distance / 1000;
+    const elevationGainPercent = (activity.total_elevation_gain / activity.distance) * 100;
+    
+    // Simplified GAP calculation: for every 1% grade, add ~3% to pace
+    const gradeAdjustment = elevationGainPercent * 0.03;
+    const adjustedTime = activity.moving_time * (1 + gradeAdjustment);
+    
+    const gapInSecondsPerKm = adjustedTime / distanceInKm;
+    const minutes = Math.floor(gapInSecondsPerKm / 60);
+    const seconds = Math.round(gapInSecondsPerKm % 60);
+    
+    return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
+  }
+
+  // Helper method to fetch streams data and process activity (avoid duplicate code)
+  async processActivityWithStreams(activity, athlete, accessToken) {
+    let streamsData = null;
+    
+    try {
+      // Try to fetch streams data for accurate GAP calculation
+      streamsData = await this.getActivityStreams(activity.id, accessToken, ['grade_adjusted_distance']);
+    } catch (error) {
+      // Streams fetch failed - log but continue without streams data
+      logger.strava.debug('Failed to fetch activity streams for GAP calculation', {
+        activityId: activity.id,
+        error: error.message
+      });
     }
     
-    return '-';
+    return this.processActivityData(activity, athlete, streamsData);
   }
 
   // Process activity data for Discord display
@@ -207,8 +277,8 @@ class StravaAPI {
       athlete: athlete || activity.athlete,
     };
 
-    // Add calculated Grade Adjusted Pace
-    processedActivity.gap_pace = this.calculateGradeAdjustedPace(activity);
+    // Add calculated Grade Adjusted Pace with streams data if available
+    processedActivity.gap_pace = this.calculateGradeAdjustedPace(activity, streamsData);
 
     return processedActivity;
   }

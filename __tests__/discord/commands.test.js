@@ -162,7 +162,7 @@ describe('DiscordCommands', () => {
       getAthleteActivities: jest.fn(),
       getActivity: jest.fn(),
       shouldPostActivity: jest.fn(),
-      processActivityData: jest.fn(),
+      processActivityWithStreams: jest.fn(),
       getRateLimiterStats: jest.fn()
     };
 
@@ -663,7 +663,7 @@ describe('DiscordCommands', () => {
       mockStravaAPI.getAthleteActivities.mockResolvedValue([mockActivity]);
       mockStravaAPI.getActivity.mockResolvedValue(mockActivity);
       mockStravaAPI.shouldPostActivity.mockReturnValue(true);
-      mockStravaAPI.processActivityData.mockReturnValue(mockActivity);
+      mockStravaAPI.processActivityWithStreams.mockResolvedValue(mockActivity);
     });
 
     it('should display member\'s last activity successfully', async () => {

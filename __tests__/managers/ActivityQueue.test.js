@@ -64,7 +64,7 @@ describe('ActivityQueue', () => {
     mockStravaAPI = {
       getActivity: jest.fn(),
       shouldPostActivity: jest.fn(),
-      processActivityData: jest.fn()
+      processActivityWithStreams: jest.fn()
     };
 
     // Mock DiscordBot
@@ -88,7 +88,7 @@ describe('ActivityQueue', () => {
     mockMemberManager.getValidAccessToken.mockResolvedValue('valid_token');
     mockStravaAPI.getActivity.mockResolvedValue(mockActivity);
     mockStravaAPI.shouldPostActivity.mockReturnValue(true);
-    mockStravaAPI.processActivityData.mockReturnValue(mockActivity);
+    mockStravaAPI.processActivityWithStreams.mockResolvedValue(mockActivity);
     mockDiscordBot.postActivity.mockResolvedValue();
   });
 
@@ -207,12 +207,13 @@ describe('ActivityQueue', () => {
       expect(mockMemberManager.getValidAccessToken).toHaveBeenCalledWith(mockMember);
       expect(mockStravaAPI.getActivity).toHaveBeenCalledWith(activityId, 'valid_token');
       expect(mockStravaAPI.shouldPostActivity).toHaveBeenCalledWith(mockActivity);
-      expect(mockStravaAPI.processActivityData).toHaveBeenCalledWith(
+      expect(mockStravaAPI.processActivityWithStreams).toHaveBeenCalledWith(
         mockActivity,
         expect.objectContaining({
           ...mockMember.athlete,
           discordUser: mockMember.discordUser
-        })
+        }),
+        'valid_token'
       );
       expect(mockDiscordBot.postActivity).toHaveBeenCalledWith(mockActivity);
       expect(mockActivityProcessor.processedActivities.has(`${athleteId}-${activityId}`)).toBe(true);
@@ -291,12 +292,13 @@ describe('ActivityQueue', () => {
 
       await activityQueue.processQueuedActivity(activityId);
 
-      expect(mockStravaAPI.processActivityData).toHaveBeenCalledWith(
+      expect(mockStravaAPI.processActivityWithStreams).toHaveBeenCalledWith(
         mockActivity,
         expect.objectContaining({
           ...mockMember.athlete,
           discordUser: null
-        })
+        }),
+        'valid_token'
       );
       expect(mockDiscordBot.postActivity).toHaveBeenCalled();
     });

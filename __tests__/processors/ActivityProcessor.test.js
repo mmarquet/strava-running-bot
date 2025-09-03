@@ -74,7 +74,7 @@ describe('ActivityProcessor', () => {
     mockStravaAPI = {
       getActivity: jest.fn(),
       shouldPostActivity: jest.fn(),
-      processActivityData: jest.fn(),
+      processActivityWithStreams: jest.fn(),
       getAthleteActivities: jest.fn()
     };
 
@@ -168,7 +168,7 @@ describe('ActivityProcessor', () => {
       mockMemberManager.getValidAccessToken.mockResolvedValue('valid_token');
       mockStravaAPI.getActivity.mockResolvedValue(mockActivity);
       mockStravaAPI.shouldPostActivity.mockReturnValue(true);
-      mockStravaAPI.processActivityData.mockReturnValue(mockProcessedActivity);
+      mockStravaAPI.processActivityWithStreams.mockResolvedValue(mockProcessedActivity);
       mockDiscordBot.postActivity.mockResolvedValue();
     });
 
@@ -179,9 +179,10 @@ describe('ActivityProcessor', () => {
       expect(mockMemberManager.getValidAccessToken).toHaveBeenCalledWith(mockMember);
       expect(mockStravaAPI.getActivity).toHaveBeenCalledWith(98765, 'valid_token');
       expect(mockStravaAPI.shouldPostActivity).toHaveBeenCalledWith(mockActivity);
-      expect(mockStravaAPI.processActivityData).toHaveBeenCalledWith(
+      expect(mockStravaAPI.processActivityWithStreams).toHaveBeenCalledWith(
         mockActivity,
-        expect.objectContaining({ ...mockMember.athlete, discordUser: mockMember.discordUser })
+        expect.objectContaining({ ...mockMember.athlete, discordUser: mockMember.discordUser }),
+        'valid_token'
       );
       expect(mockDiscordBot.postActivity).toHaveBeenCalledWith(mockProcessedActivity);
       expect(activityProcessor.processedActivities.has('12345-98765')).toBe(true);
@@ -298,9 +299,10 @@ describe('ActivityProcessor', () => {
 
       await activityProcessor.processNewActivity(98765, 12345);
 
-      expect(mockStravaAPI.processActivityData).toHaveBeenCalledWith(
+      expect(mockStravaAPI.processActivityWithStreams).toHaveBeenCalledWith(
         mockActivity,
-        expect.objectContaining({ ...mockMember.athlete, discordUser: null })
+        expect.objectContaining({ ...mockMember.athlete, discordUser: null }),
+        'valid_token'
       );
       expect(mockDiscordBot.postActivity).toHaveBeenCalled();
     });
@@ -689,7 +691,7 @@ describe('ActivityProcessor', () => {
       mockMemberManager.getValidAccessToken.mockResolvedValue('valid_token');
       mockStravaAPI.getActivity.mockResolvedValue(mockActivity);
       mockStravaAPI.shouldPostActivity.mockReturnValue(true);
-      mockStravaAPI.processActivityData.mockReturnValue(mockProcessedActivity);
+      mockStravaAPI.processActivityWithStreams.mockResolvedValue(mockProcessedActivity);
       mockDiscordBot.postActivity.mockResolvedValue();
 
       // Process same activity concurrently

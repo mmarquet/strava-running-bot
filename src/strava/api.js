@@ -210,6 +210,16 @@ class StravaAPI {
         const minutes = Math.floor(gapInSecondsPerKm / 60);
         const seconds = Math.round(gapInSecondsPerKm % 60);
         
+        // Debug logging
+        logger.strava.debug('GAP calculation details', {
+          activityId: activity.id,
+          moving_time: activity.moving_time,
+          distance: activity.distance,
+          finalGradeAdjustedDistance: finalGradeAdjustedDistance,
+          gapInSecondsPerKm: gapInSecondsPerKm,
+          calculatedGAP: `${minutes}:${seconds.toString().padStart(2, '0')}/km`
+        });
+        
         return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
       }
     }
@@ -239,7 +249,7 @@ class StravaAPI {
     
     try {
       // Try to fetch streams data for accurate GAP calculation
-      streamsData = await this.getActivityStreams(activity.id, accessToken, ['grade_adjusted_distance']);
+      streamsData = await this.getActivityStreams(activity.id, accessToken, ['grade_adjusted_distance', 'time', 'distance']);
     } catch (error) {
       // Streams fetch failed - log but continue without streams data
       logger.strava.debug('Failed to fetch activity streams for GAP calculation', {

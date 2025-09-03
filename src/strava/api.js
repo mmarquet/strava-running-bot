@@ -163,9 +163,59 @@ class StravaAPI {
     }, { operation: 'getActivity', activityId });
   }
 
-  // Calculate Grade Adjusted Pace (GAP) - simplified estimation
-  calculateGradeAdjustedPace(activity) {
-    if (!activity.distance || !activity.moving_time || !activity.total_elevation_gain) {
+  // Get activity streams data
+  async getActivityStreams(activityId, accessToken, keys = ['grade_adjusted_distance']) {
+    logger.strava.debug('Fetching activity streams', { activityId, keys });
+    
+    return this.rateLimiter.executeRequest(async () => {
+      try {
+        const response = await axios.get(`${this.baseURL}/activities/${activityId}/streams`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          params: {
+            keys: keys.join(','),
+            key_by_type: true
+          }
+        });
+
+        return response.data;
+      } catch (error) {
+        logger.strava.error('Error fetching activity streams', {
+          activityId,
+          keys,
+          error: error.message,
+          response: error.response?.data,
+          status: error.response?.status
+        });
+        throw new Error(`Failed to fetch activity streams for ${activityId}`);
+      }
+    }, { operation: 'getActivityStreams', activityId, keys });
+  }
+
+  // Calculate Grade Adjusted Pace (GAP) using streams data when available
+  calculateGradeAdjustedPace(activity, streamsData = null) {
+    if (!activity.distance || !activity.moving_time) {
+      return null;
+    }
+
+    // Use streams data if available for accurate GAP calculation
+    if (streamsData?.grade_adjusted_distance?.data?.length > 0) {
+      
+      const gradeAdjustedDistanceData = streamsData.grade_adjusted_distance.data;
+      const finalGradeAdjustedDistance = gradeAdjustedDistanceData[gradeAdjustedDistanceData.length - 1];
+      
+      if (finalGradeAdjustedDistance > 0) {
+        const gapInSecondsPerKm = activity.moving_time / (finalGradeAdjustedDistance / 1000);
+        const minutes = Math.floor(gapInSecondsPerKm / 60);
+        const seconds = Math.round(gapInSecondsPerKm % 60);
+        
+        return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
+      }
+    }
+
+    // Fallback to simplified estimation when streams data is not available
+    if (!activity.total_elevation_gain) {
       return null;
     }
 
@@ -184,7 +234,7 @@ class StravaAPI {
   }
 
   // Process activity data for Discord display
-  processActivityData(activity, athlete = null) {
+  processActivityData(activity, athlete = null, streamsData = null) {
     const processedActivity = {
       id: activity.id,
       name: activity.name,
@@ -209,8 +259,8 @@ class StravaAPI {
       athlete: athlete || activity.athlete,
     };
 
-    // Add calculated Grade Adjusted Pace
-    processedActivity.gap_pace = this.calculateGradeAdjustedPace(activity);
+    // Add calculated Grade Adjusted Pace with streams data if available
+    processedActivity.gap_pace = this.calculateGradeAdjustedPace(activity, streamsData);
 
     return processedActivity;
   }

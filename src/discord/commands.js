@@ -545,10 +545,11 @@ class DiscordCommands {
         return;
       }
 
-      // Process the activity data for display
-      const processedActivity = this.activityProcessor.stravaAPI.processActivityData(
+      // Process the activity data for display with streams data for accurate GAP
+      const processedActivity = await this.activityProcessor.stravaAPI.processActivityWithStreams(
         publicActivity,
-        member.athlete
+        member.athlete,
+        accessToken
       );
 
       // Create the same embed as used for posting activities

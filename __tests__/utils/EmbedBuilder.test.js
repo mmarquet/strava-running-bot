@@ -1,18 +1,25 @@
 const { EmbedBuilder } = require('discord.js');
 const ActivityEmbedBuilder = require('../../src/utils/EmbedBuilder');
 const ActivityFormatter = require('../../src/utils/ActivityFormatter');
+const AchievementDetector = require('../../src/utils/AchievementDetector');
 
 // Mock EmbedBuilder methods
 const mockEmbedBuilder = {
-  setTitle: jest.fn().mockReturnThis(),
-  setColor: jest.fn().mockReturnThis(),
+  data: {}, // Add data property to store embed data
+  setTitle: jest.fn().mockImplementation(function(title) { this.data.title = title; return this; }),
+  setColor: jest.fn().mockImplementation(function(color) { this.data.color = color; return this; }),
   setTimestamp: jest.fn().mockReturnThis(),
   setURL: jest.fn().mockReturnThis(),
-  setAuthor: jest.fn().mockReturnThis(),
-  setFooter: jest.fn().mockReturnThis(),
-  setDescription: jest.fn().mockReturnThis(),
-  addFields: jest.fn().mockReturnThis(),
-  setImage: jest.fn().mockReturnThis()
+  setAuthor: jest.fn().mockImplementation(function(author) { this.data.author = author; return this; }),
+  setFooter: jest.fn().mockImplementation(function(footer) { this.data.footer = footer; return this; }),
+  setDescription: jest.fn().mockImplementation(function(description) { this.data.description = description; return this; }),
+  addFields: jest.fn().mockImplementation(function(fields) { 
+    if (!this.data.fields) this.data.fields = [];
+    this.data.fields.push(...fields); 
+    return this; 
+  }),
+  setImage: jest.fn().mockImplementation(function(image) { this.data.image = image; return this; }),
+  setThumbnail: jest.fn().mockImplementation(function(thumbnail) { this.data.thumbnail = thumbnail; return this; })
 };
 
 // Mock dependencies  
@@ -20,10 +27,14 @@ jest.mock('discord.js', () => ({
   EmbedBuilder: jest.fn().mockImplementation(() => mockEmbedBuilder)
 }));
 jest.mock('../../src/utils/ActivityFormatter');
+jest.mock('../../src/utils/AchievementDetector');
 
 describe('ActivityEmbedBuilder', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    
+    // Reset mock embed data
+    mockEmbedBuilder.data = {};
     
     // Setup default mock returns
     ActivityFormatter.escapeDiscordMarkdown.mockImplementation(text => text);
@@ -32,6 +43,15 @@ describe('ActivityEmbedBuilder', () => {
     ActivityFormatter.formatTime.mockReturnValue('30:00');
     ActivityFormatter.formatPace.mockReturnValue('6:00/km');
     ActivityFormatter.generateStaticMapUrl.mockReturnValue('https://maps.googleapis.com/maps/api/staticmap?test');
+
+    // Setup AchievementDetector mock returns
+    AchievementDetector.getAchievementSummary.mockReturnValue('');
+    AchievementDetector.getMostImpressiveAchievement.mockReturnValue(null);
+    AchievementDetector.formatAchievementForDiscord.mockReturnValue({
+      name: '👑 King of the Mountain!',
+      value: '**Test Segment**\nClaimed the crown on this segment!\n📊 Time: 10:00 | Distance: 1.50km\n🔗 [View Segment](https://www.strava.com/segments/456)',
+      inline: false
+    });
   });
 
   describe('createActivityEmbed', () => {
@@ -361,6 +381,137 @@ describe('ActivityEmbedBuilder', () => {
       expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(3, [
         { name: '⛰️ Elevation Gain', value: '300m', inline: true }
       ]);
+    });
+  });
+
+  describe('achievement handling', () => {
+    const baseActivity = {
+      id: 12345,
+      name: 'Test Run',
+      type: 'Run',
+      distance: 5000,
+      moving_time: 1800,
+      start_date: '2024-01-01T10:00:00Z',
+      athlete: {
+        firstname: 'John',
+        lastname: 'Doe'
+      }
+    };
+
+    it('should handle activity with achievements - title and styling', () => {
+      const activityWithAchievements = {
+        ...baseActivity,
+        achievements: [
+          {
+            type: 'kom',
+            emoji: '👑',
+            title: 'King of the Mountain!',
+            segmentName: 'Big Hill',
+            gif: 'https://example.com/celebration.gif'
+          }
+        ]
+      };
+
+      AchievementDetector.getAchievementSummary.mockReturnValue('1 KOM');
+      AchievementDetector.getMostImpressiveAchievement.mockReturnValue(activityWithAchievements.achievements[0]);
+
+      ActivityEmbedBuilder.createActivityEmbed(activityWithAchievements);
+
+      expect(mockEmbedBuilder.setTitle).toHaveBeenCalledWith('🎉 🏃 Test Run - 1 KOM!');
+      expect(mockEmbedBuilder.setColor).toHaveBeenCalledWith('#FFD700'); // Gold color
+      expect(mockEmbedBuilder.setThumbnail).toHaveBeenCalledWith('https://example.com/celebration.gif');
+    });
+
+    it('should add achievement fields with separator', () => {
+      const activityWithAchievements = {
+        ...baseActivity,
+        achievements: [
+          {
+            type: 'kom',
+            segmentName: 'Test Segment'
+          }
+        ]
+      };
+
+      ActivityEmbedBuilder.createActivityEmbed(activityWithAchievements);
+
+      // Should add separator field
+      expect(mockEmbedBuilder.addFields).toHaveBeenCalledWith([{
+        name: '\u200B',
+        value: '\u200B',
+        inline: false
+      }]);
+
+      // Should add achievement field
+      expect(AchievementDetector.formatAchievementForDiscord).toHaveBeenCalledWith(activityWithAchievements.achievements[0]);
+      expect(mockEmbedBuilder.addFields).toHaveBeenCalledWith([{
+        name: '👑 King of the Mountain!',
+        value: '**Test Segment**\nClaimed the crown on this segment!\n📊 Time: 10:00 | Distance: 1.50km\n🔗 [View Segment](https://www.strava.com/segments/456)',
+        inline: false
+      }]);
+    });
+
+    it('should handle multiple achievements', () => {
+      const activityWithMultipleAchievements = {
+        ...baseActivity,
+        achievements: [
+          { type: 'kom', segmentName: 'Hill 1' },
+          { type: 'local_legend', segmentName: 'Hill 2' }
+        ]
+      };
+
+      AchievementDetector.getAchievementSummary.mockReturnValue('1 KOM, 1 Local Legend');
+
+      ActivityEmbedBuilder.createActivityEmbed(activityWithMultipleAchievements);
+
+      expect(mockEmbedBuilder.setTitle).toHaveBeenCalledWith('🎉 🏃 Test Run - 1 KOM, 1 Local Legend!');
+      expect(AchievementDetector.formatAchievementForDiscord).toHaveBeenCalledTimes(2);
+    });
+
+    it('should not add achievement styling for empty achievements array', () => {
+      const activityWithoutAchievements = {
+        ...baseActivity,
+        achievements: []
+      };
+
+      ActivityEmbedBuilder.createActivityEmbed(activityWithoutAchievements);
+
+      expect(mockEmbedBuilder.setTitle).toHaveBeenCalledWith('🏃 Test Run');
+      expect(mockEmbedBuilder.setColor).toHaveBeenCalledWith('#FC4C02'); // Original color
+      expect(mockEmbedBuilder.setThumbnail).not.toHaveBeenCalled();
+    });
+
+    it('should not add achievement styling when achievements is undefined', () => {
+      const activityWithoutAchievements = {
+        ...baseActivity
+        // achievements property not set
+      };
+
+      ActivityEmbedBuilder.createActivityEmbed(activityWithoutAchievements);
+
+      expect(mockEmbedBuilder.setTitle).toHaveBeenCalledWith('🏃 Test Run');
+      expect(mockEmbedBuilder.setColor).toHaveBeenCalledWith('#FC4C02');
+      expect(mockEmbedBuilder.setThumbnail).not.toHaveBeenCalled();
+    });
+
+    it('should handle achievement without GIF', () => {
+      const activityWithAchievementNoGif = {
+        ...baseActivity,
+        achievements: [
+          {
+            type: 'kom',
+            segmentName: 'Test Segment',
+            gif: null
+          }
+        ]
+      };
+
+      AchievementDetector.getAchievementSummary.mockReturnValue('1 KOM');
+      AchievementDetector.getMostImpressiveAchievement.mockReturnValue(activityWithAchievementNoGif.achievements[0]);
+
+      ActivityEmbedBuilder.createActivityEmbed(activityWithAchievementNoGif);
+
+      expect(mockEmbedBuilder.setThumbnail).not.toHaveBeenCalled();
     });
   });
 });

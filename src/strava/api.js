@@ -148,6 +148,9 @@ class StravaAPI {
           headers: {
             Authorization: `Bearer ${accessToken}`,
           },
+          params: {
+            include_all_efforts: true // Include segment efforts for achievement detection
+          }
         });
 
         return response.data;
@@ -248,11 +251,13 @@ class StravaAPI {
       });
     }
     
-    return this.processActivityData(activity, athlete, streamsData);
+    return await this.processActivityData(activity, athlete, streamsData);
   }
 
   // Process activity data for Discord display
-  processActivityData(activity, athlete = null, streamsData = null) {
+  async processActivityData(activity, athlete = null, streamsData = null) {
+    const AchievementDetector = require('../utils/AchievementDetector');
+
     const processedActivity = {
       id: activity.id,
       name: activity.name,
@@ -275,10 +280,30 @@ class StravaAPI {
       external_id: activity.external_id,
       map: activity.map,
       athlete: athlete || activity.athlete,
+      segment_efforts: activity.segment_efforts || []
     };
 
     // Add calculated Grade Adjusted Pace with streams data if available
     processedActivity.gap_pace = this.calculateGradeAdjustedPace(activity, streamsData);
+
+    // Detect achievements (KOMs, QOMs, Local Legends)
+    const achievements = AchievementDetector.detectAchievements(activity);
+    
+    // Add GIFs to achievements using API
+    if (achievements && achievements.length > 0) {
+      try {
+        const detector = new AchievementDetector();
+        processedActivity.achievements = await detector.addGifsToAchievements(achievements);
+      } catch (error) {
+        logger.activity.warn('Failed to add GIFs to achievements, using achievements without GIFs', {
+          error: error.message,
+          achievementCount: achievements.length
+        });
+        processedActivity.achievements = achievements;
+      }
+    } else {
+      processedActivity.achievements = achievements;
+    }
 
     return processedActivity;
   }

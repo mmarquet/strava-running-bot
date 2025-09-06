@@ -129,14 +129,36 @@ class DiscordBot {
       }
 
       const embed = ActivityEmbedBuilder.createActivityEmbed(activityData, { type: 'posted' });
-      await channel.send({ embeds: [embed] });
+      
+      // Check if this activity has achievements for special message
+      const hasAchievements = activityData.achievements && activityData.achievements.length > 0;
+      let messageContent = '';
+      
+      if (hasAchievements) {
+        const AchievementDetector = require('../utils/AchievementDetector');
+        const summary = AchievementDetector.getAchievementSummary(activityData.achievements);
+        const athleteName = activityData.athlete.discordUser?.displayName || 
+                           `${activityData.athlete.firstname} ${activityData.athlete.lastname}`;
+        
+        messageContent = `🚨 **ACHIEVEMENT ALERT!** 🚨\n` +
+                        `**${athleteName}** just earned ${summary}! 🔥💪`;
+      }
+
+      const messageOptions = { embeds: [embed] };
+      if (messageContent) {
+        messageOptions.content = messageContent;
+      }
+
+      await channel.send(messageOptions);
       
       logger.discord.info('Posted activity to Discord', {
         activityName: activityData.name,
         activityType: activityData.type,
         distance: activityData.distance,
         athleteName: `${activityData.athlete?.firstname} ${activityData.athlete?.lastname}`,
-        channelId: config.discord.channelId
+        channelId: config.discord.channelId,
+        hasAchievements: hasAchievements,
+        achievementCount: activityData.achievements?.length || 0
       });
     } catch (error) {
       logger.discord.error('Failed to post activity to Discord', {

@@ -407,7 +407,9 @@ describe('DiscordBot', () => {
         activityType: mockActivityData.type,
         distance: mockActivityData.distance,
         athleteName: `${mockActivityData.athlete.firstname} ${mockActivityData.athlete.lastname}`,
-        channelId: config.discord.channelId
+        channelId: config.discord.channelId,
+        hasAchievements: undefined,
+        achievementCount: 0
       });
     });
 
@@ -482,6 +484,77 @@ describe('DiscordBot', () => {
       await discordBot.postActivity(mockActivityData);
 
       expect(ActivityEmbedBuilder.createActivityEmbed).toHaveBeenCalledWith(mockActivityData, { type: 'posted' });
+    });
+
+    it('should send special message for activities with achievements', async () => {
+      const mockEmbed = { title: 'Test Activity Embed' };
+      ActivityEmbedBuilder.createActivityEmbed.mockReturnValue(mockEmbed);
+
+      const activityWithAchievements = {
+        ...mockActivityData,
+        achievements: [
+          { type: 'kom', segmentName: 'Big Hill' },
+          { type: 'local_legend', segmentName: 'Local Loop' }
+        ]
+      };
+
+      await discordBot.postActivity(activityWithAchievements);
+
+      const expectedMessage = '🚨 **ACHIEVEMENT ALERT!** 🚨\n**John Doe** just earned ! 🔥💪';
+      
+      expect(mockChannel.send).toHaveBeenCalledWith({
+        content: expect.stringContaining('🚨 **ACHIEVEMENT ALERT!** 🚨'),
+        embeds: [mockEmbed]
+      });
+
+      expect(logger.discord.info).toHaveBeenCalledWith('Posted activity to Discord', 
+        expect.objectContaining({
+          hasAchievements: true,
+          achievementCount: 2
+        })
+      );
+    });
+
+    it('should use Discord display name for achievement message when available', async () => {
+      const activityWithAchievements = {
+        ...mockActivityData,
+        athlete: {
+          ...mockActivityData.athlete,
+          discordUser: {
+            displayName: 'JohnDoe123'
+          }
+        },
+        achievements: [
+          { type: 'kom', segmentName: 'Test Segment' }
+        ]
+      };
+
+      await discordBot.postActivity(activityWithAchievements);
+
+      const sentMessage = mockChannel.send.mock.calls[0][0];
+      expect(sentMessage.content).toContain('**JohnDoe123**');
+      expect(sentMessage.content).toContain('🚨 **ACHIEVEMENT ALERT!** 🚨');
+    });
+
+    it('should send regular message for activities without achievements', async () => {
+      const mockEmbed = { title: 'Test Activity Embed' };
+      ActivityEmbedBuilder.createActivityEmbed.mockReturnValue(mockEmbed);
+
+      const activityWithoutAchievements = {
+        ...mockActivityData,
+        achievements: []
+      };
+
+      await discordBot.postActivity(activityWithoutAchievements);
+
+      expect(mockChannel.send).toHaveBeenCalledWith({ embeds: [mockEmbed] });
+
+      expect(logger.discord.info).toHaveBeenCalledWith('Posted activity to Discord', 
+        expect.objectContaining({
+          hasAchievements: false,
+          achievementCount: 0
+        })
+      );
     });
   });
 

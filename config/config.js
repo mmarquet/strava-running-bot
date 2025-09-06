@@ -29,7 +29,10 @@ const config = {
   },
   app: {
     name: 'Strava Running Bot',
-    version: '1.0.0',
+    version: '1.0.1',
+  },
+  giphy: {
+    apiKey: process.env.GIPHY_API_KEY,
   }
 };
 

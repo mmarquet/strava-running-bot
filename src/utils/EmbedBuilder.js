@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 const ActivityFormatter = require('./ActivityFormatter');
+const AchievementDetector = require('./AchievementDetector');
 
 /**
  * Shared utility for creating Discord embeds for activities
@@ -24,8 +25,10 @@ class ActivityEmbedBuilder {
 
     this._setEmbedAuthorAndFooter(embed, activity, type);
     this._addActivityDescription(embed, activity);
+    this._addAchievementsBanner(embed, activity);
     this._addCoreActivityFields(embed, activity);
     this._addOptionalActivityFields(embed, activity);
+    this._addAchievementFields(embed, activity);
     this._addMapImage(embed, activity);
 
     return embed;
@@ -83,6 +86,30 @@ class ActivityEmbedBuilder {
   }
 
   /**
+   * Add achievements banner to embed title if achievements exist
+   * @param {EmbedBuilder} embed - Discord embed builder
+   * @param {Object} activity - Activity data
+   */
+  static _addAchievementsBanner(embed, activity) {
+    if (activity.achievements && activity.achievements.length > 0) {
+      const summary = AchievementDetector.getAchievementSummary(activity.achievements);
+      const currentTitle = embed.data.title;
+      
+      // Add celebration emoji and achievement summary to title
+      embed.setTitle(`🎉 ${currentTitle} - ${summary}!`);
+      
+      // Use special color for achievements
+      embed.setColor('#FFD700'); // Gold color for achievements
+      
+      // Set GIF from most impressive achievement
+      const topAchievement = AchievementDetector.getMostImpressiveAchievement(activity.achievements);
+      if (topAchievement && topAchievement.gif) {
+        embed.setThumbnail(topAchievement.gif);
+      }
+    }
+  }
+
+  /**
    * Add core activity fields (distance, time, pace)
    * @param {EmbedBuilder} embed - Discord embed builder
    * @param {Object} activity - Activity data
@@ -135,6 +162,28 @@ class ActivityEmbedBuilder {
         value: `${Math.round(activity.total_elevation_gain)}m`,
         inline: true,
       }]);
+    }
+  }
+
+  /**
+   * Add achievement fields for KOMs, QOMs, and Local Legends
+   * @param {EmbedBuilder} embed - Discord embed builder
+   * @param {Object} activity - Activity data
+   */
+  static _addAchievementFields(embed, activity) {
+    if (activity.achievements && activity.achievements.length > 0) {
+      // Add a separator field
+      embed.addFields([{
+        name: '\u200B', // Zero-width space for empty field
+        value: '\u200B',
+        inline: false
+      }]);
+
+      // Add each achievement as a field
+      activity.achievements.forEach(achievement => {
+        const field = AchievementDetector.formatAchievementForDiscord(achievement);
+        embed.addFields([field]);
+      });
     }
   }
 

@@ -23,6 +23,12 @@ jest.mock('../../src/utils/Logger', () => ({
     debug: jest.fn(),
     error: jest.fn(),
     warn: jest.fn()
+  },
+  activity: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn()
   }
 }));
 jest.mock('../../src/utils/RateLimiter');
@@ -357,6 +363,9 @@ describe('StravaAPI', () => {
       expect(mockAxios.get).toHaveBeenCalledWith(`${config.strava.baseUrl}/activities/${activityId}`, {
         headers: {
           Authorization: `Bearer ${accessToken}`
+        },
+        params: {
+          include_all_efforts: true
         }
       });
       expect(result).toEqual(mockActivityResponse.data);
@@ -639,7 +648,7 @@ describe('StravaAPI', () => {
         'elapsed_time', 'total_elevation_gain', 'start_date', 'start_date_local',
         'timezone', 'average_speed', 'max_speed', 'average_heartrate',
         'max_heartrate', 'elev_high', 'elev_low', 'upload_id', 'external_id',
-        'map', 'athlete', 'gap_pace'
+        'map', 'athlete', 'gap_pace', 'segment_efforts', 'achievements'
       ];
 
       expectedFields.forEach(field => {
@@ -657,6 +666,32 @@ describe('StravaAPI', () => {
       expect(result.gap_pace).toBe('5:30/km');
       
       calculateGAPSpy.mockRestore();
+    });
+
+    it('should detect achievements from segment efforts', () => {
+      const activityWithAchievements = {
+        ...mockActivity,
+        segment_efforts: [
+          {
+            id: 123,
+            segment: { id: 456, name: 'Test Segment' },
+            achievements: ['kom'],
+            elapsed_time: 600,
+            moving_time: 580,
+            distance: 1500
+          }
+        ]
+      };
+
+      const result = stravaAPI.processActivityData(activityWithAchievements, mockAthlete);
+
+      expect(result.achievements).toHaveLength(1);
+      expect(result.achievements[0]).toMatchObject({
+        type: 'kom',
+        segmentName: 'Test Segment',
+        segmentId: 456
+      });
+      expect(result.segment_efforts).toEqual(activityWithAchievements.segment_efforts);
     });
   });
 

@@ -27,7 +27,8 @@ describe('ActivityEmbedBuilder', () => {
     
     // Setup default mock returns
     ActivityFormatter.escapeDiscordMarkdown.mockImplementation(text => text);
-    ActivityFormatter.getActivityColor.mockReturnValue('#FC4C02');
+    ActivityFormatter.getActivityTypeColor.mockReturnValue('#FC4C02');
+    ActivityFormatter.getActivityTypeIcon.mockReturnValue('🏃');
     ActivityFormatter.formatDistance.mockReturnValue('5.00 km');
     ActivityFormatter.formatTime.mockReturnValue('30:00');
     ActivityFormatter.formatPace.mockReturnValue('6:00/km');
@@ -70,7 +71,7 @@ describe('ActivityEmbedBuilder', () => {
       expect(mockEmbedBuilder.setTimestamp).toHaveBeenCalledWith(new Date('2024-01-01T10:00:00Z'));
       expect(mockEmbedBuilder.setURL).toHaveBeenCalledWith('https://www.strava.com/activities/12345');
       expect(ActivityFormatter.escapeDiscordMarkdown).toHaveBeenCalledWith('Morning Run');
-      expect(ActivityFormatter.getActivityColor).toHaveBeenCalledWith('Run');
+      expect(ActivityFormatter.getActivityTypeColor).toHaveBeenCalledWith('Run');
     });
 
     it('should create embed with posted type', () => {
@@ -81,8 +82,8 @@ describe('ActivityEmbedBuilder', () => {
         iconURL: 'https://cdn.discordapp.com/avatars/123/avatar.png'
       });
       expect(mockEmbedBuilder.setFooter).toHaveBeenCalledWith({
-        iconURL: "https://cdn.worldvectorlogo.com/logos/strava-1.svg",
-        text: "Powered by Strava"
+        iconURL: 'https://cdn.worldvectorlogo.com/logos/strava-1.svg',
+        text: 'Powered by Strava'
       });
     });
 
@@ -94,8 +95,8 @@ describe('ActivityEmbedBuilder', () => {
         iconURL: 'https://cdn.discordapp.com/avatars/123/avatar.png'
       });
       expect(mockEmbedBuilder.setFooter).toHaveBeenCalledWith({
-        iconURL: "https://cdn.worldvectorlogo.com/logos/strava-1.svg",
-        text: "Latest Activity • Powered by Strava"
+        iconURL: 'https://cdn.worldvectorlogo.com/logos/strava-1.svg',
+        text: 'Latest Activity • Powered by Strava'
       });
     });
 
@@ -243,11 +244,11 @@ describe('ActivityEmbedBuilder', () => {
 
     it('should handle different activity types', () => {
       const rideActivity = { ...mockActivity, type: 'Ride' };
-      ActivityFormatter.getActivityColor.mockReturnValue('#0074D9');
+      ActivityFormatter.getActivityTypeColor.mockReturnValue('#0074D9');
 
       ActivityEmbedBuilder.createActivityEmbed(rideActivity);
 
-      expect(ActivityFormatter.getActivityColor).toHaveBeenCalledWith('Ride');
+      expect(ActivityFormatter.getActivityTypeColor).toHaveBeenCalledWith('Ride');
       expect(mockEmbedBuilder.setColor).toHaveBeenCalledWith('#0074D9');
     });
 

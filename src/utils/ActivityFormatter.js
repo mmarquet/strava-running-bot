@@ -8,7 +8,7 @@ class ActivityFormatter {
    * @param {string} activityType - The type of activity (Run, Ride, etc.)
    * @returns {string} Hex color code
    */
-  static getActivityColor(activityType) {
+  static getActivityTypeColor(activityType) {
     const colors = {
       'Run': '#FC4C02',      // Strava orange
       'Ride': '#0074D9',     // Blue
@@ -21,6 +21,26 @@ class ActivityFormatter {
     
     return colors[activityType] || colors.default;
   }
+
+  /**
+   * Get activity icon based on type
+   * @param {string} activityType - The type of activity (Run, Ride, etc.)
+   * @returns {string} Hex color code
+   */
+  static getActivityTypeIcon(activityType) {
+    const icon = {
+      'Run': '🏃',      
+      'Ride': '🚴',   
+      'Swim': '🏊',   
+      'Walk': '🚶',   
+      'Hike': '🥾',   
+      'Workout': '🏋️',
+      'default': '🏃' 
+    };
+    
+    return icon[activityType] || icon.default;
+  }
+
 
   /**
    * Format distance from meters to kilometers

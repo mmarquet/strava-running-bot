@@ -1,3 +1,4 @@
+const config = require('../../config/config');
 const { EmbedBuilder } = require('discord.js');
 const ActivityFormatter = require('./ActivityFormatter');
 
@@ -17,11 +18,11 @@ class ActivityEmbedBuilder {
     const { type = 'posted' } = options;
     
     const embed = new EmbedBuilder()
-      .setTitle(`🏃 ${ActivityFormatter.escapeDiscordMarkdown(activity.name)}`)
-      .setColor(ActivityFormatter.getActivityColor(activity.type))
+      .setTitle(`${ActivityFormatter.getActivityTypeIcon(activity.type)} ${ActivityFormatter.escapeDiscordMarkdown(activity.name)}`)
       .setTimestamp(new Date(activity.start_date))
       .setURL(`https://www.strava.com/activities/${activity.id}`);
-
+    this._setEmbedColor(embed, activity);
+    this._setEmbedThumbnail(embed, activity);
     this._setEmbedAuthorAndFooter(embed, activity, type);
     this._addActivityDescription(embed, activity);
     this._addCoreActivityFields(embed, activity);
@@ -29,6 +30,28 @@ class ActivityEmbedBuilder {
     this._addMapImage(embed, activity);
 
     return embed;
+  }
+
+  /**
+   * Set embed color based on activity type and workout type (Race or not)
+   * @param {EmbedBuilder} embed - Discord embed builder
+   * @param {Object} activity - Activity data
+   */
+  static _setEmbedColor(embed, activity) {
+    const raceColor = '#D4AF37'; // Gold
+    const color = activity.isRace ? raceColor : ActivityFormatter.getActivityTypeColor(activity.type);
+    embed.setColor(color);
+  }
+
+  /**
+   * Set embed thumbnail if activity is a race
+   * @param {EmbedBuilder} embed - Discord embed builder
+   * @param {Object} activity - Activity data
+   */
+  static _setEmbedThumbnail(embed, activity) {
+    if (activity.isRace) {
+      embed.setThumbnail(`${config.server.baseUrl}/static/checked-flag.png`); // Finish Race Icon
+    }
   }
 
   /**

@@ -1,6 +1,21 @@
 const { EmbedBuilder } = require('discord.js');
+const config = require('../../config/config');
 const ActivityEmbedBuilder = require('../../src/utils/EmbedBuilder');
 const ActivityFormatter = require('../../src/utils/ActivityFormatter');
+
+
+jest.mock('../../config/config', () => ({
+  strava: {
+    baseUrl: 'https://www.strava.com/api/v3',
+    authUrl: 'https://www.strava.com/oauth/authorize',
+    tokenUrl: 'https://www.strava.com/oauth/token',
+    clientId: 'test_client_id',
+    clientSecret: 'test_client_secret'
+  },
+  server: {
+    baseUrl: 'https://test.example.com'
+  }
+}));
 
 // Mock EmbedBuilder methods
 const mockEmbedBuilder = {

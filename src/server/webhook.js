@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const config = require('../../config/config');
 const logger = require('../utils/Logger');
 
@@ -16,6 +17,9 @@ class WebhookServer {
     
     // Parse URL-encoded bodies
     this.app.use(express.urlencoded({ extended: true }));
+
+    // Serve static files (if needed)
+    this.app.use('/static', express.static(path.join(__dirname, '../../public')));
 
     // Request logging middleware
     this.app.use((req, res, next) => {

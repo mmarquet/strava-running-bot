@@ -33,7 +33,7 @@ class StravaAPI {
   // Exchange authorization code for access token
   async exchangeCodeForToken(authCode) {
     logger.strava.debug('Exchanging authorization code for token', { authCode });
-    
+
     return this.rateLimiter.executeRequest(async () => {
       try {
         const response = await axios.post(config.strava.tokenUrl, {
@@ -58,7 +58,7 @@ class StravaAPI {
   // Refresh access token using refresh token
   async refreshAccessToken(refreshToken) {
     logger.strava.debug('Refreshing access token');
-    
+
     return this.rateLimiter.executeRequest(async () => {
       try {
         const response = await axios.post(config.strava.tokenUrl, {
@@ -83,7 +83,7 @@ class StravaAPI {
   // Get athlete information
   async getAthlete(accessToken) {
     logger.strava.debug('Fetching athlete information');
-    
+
     return this.rateLimiter.executeRequest(async () => {
       try {
         const response = await axios.get(`${this.baseURL}/athlete`, {
@@ -107,7 +107,7 @@ class StravaAPI {
   // Get athlete activities
   async getAthleteActivities(accessToken, page = 1, perPage = 30, before = null, after = null) {
     logger.strava.debug('Fetching athlete activities', { page, perPage, before, after });
-    
+
     return this.rateLimiter.executeRequest(async () => {
       try {
         const params = {
@@ -141,7 +141,7 @@ class StravaAPI {
   // Get detailed activity by ID
   async getActivity(activityId, accessToken) {
     logger.strava.debug('Fetching detailed activity', { activityId });
-    
+
     return this.rateLimiter.executeRequest(async () => {
       try {
         const response = await axios.get(`${this.baseURL}/activities/${activityId}`, {
@@ -166,7 +166,7 @@ class StravaAPI {
   // Get activity streams data
   async getActivityStreams(activityId, accessToken, keys = ['grade_adjusted_distance']) {
     logger.strava.debug('Fetching activity streams', { activityId, keys });
-    
+
     return this.rateLimiter.executeRequest(async () => {
       try {
         const response = await axios.get(`${this.baseURL}/activities/${activityId}/streams`, {
@@ -201,15 +201,15 @@ class StravaAPI {
 
     // Use streams data if available for accurate GAP calculation
     if (streamsData?.grade_adjusted_distance?.data?.length > 0) {
-      
+
       const gradeAdjustedDistanceData = streamsData.grade_adjusted_distance.data;
       const finalGradeAdjustedDistance = gradeAdjustedDistanceData[gradeAdjustedDistanceData.length - 1];
-      
+
       if (finalGradeAdjustedDistance > 0) {
         const gapInSecondsPerKm = activity.moving_time / (finalGradeAdjustedDistance / 1000);
         const minutes = Math.floor(gapInSecondsPerKm / 60);
         const seconds = Math.round(gapInSecondsPerKm % 60);
-        
+
         return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
       }
     }
@@ -221,22 +221,22 @@ class StravaAPI {
 
     const distanceInKm = activity.distance / 1000;
     const elevationGainPercent = (activity.total_elevation_gain / activity.distance) * 100;
-    
+
     // Simplified GAP calculation: for every 1% grade, add ~3% to pace
     const gradeAdjustment = elevationGainPercent * 0.03;
     const adjustedTime = activity.moving_time * (1 + gradeAdjustment);
-    
+
     const gapInSecondsPerKm = adjustedTime / distanceInKm;
     const minutes = Math.floor(gapInSecondsPerKm / 60);
     const seconds = Math.round(gapInSecondsPerKm % 60);
-    
+
     return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
   }
 
   // Helper method to fetch streams data and process activity (avoid duplicate code)
   async processActivityWithStreams(activity, athlete, accessToken) {
     let streamsData = null;
-    
+
     try {
       // Try to fetch streams data for accurate GAP calculation
       streamsData = await this.getActivityStreams(activity.id, accessToken, ['grade_adjusted_distance']);
@@ -247,8 +247,13 @@ class StravaAPI {
         error: error.message
       });
     }
-    
+
     return this.processActivityData(activity, athlete, streamsData);
+  }
+
+  isRaceActivity(activity) {
+    return (activity.type === 'Run' && activity.workout_type === 1) ||
+      (activity.type === 'Ride' && activity.workout_type === 11);
   }
 
   // Process activity data for Discord display
@@ -279,6 +284,8 @@ class StravaAPI {
 
     // Add calculated Grade Adjusted Pace with streams data if available
     processedActivity.gap_pace = this.calculateGradeAdjustedPace(activity, streamsData);
+    // Add isRace flag
+    processedActivity.isRace = this.isRaceActivity(activity);
 
     return processedActivity;
   }
@@ -308,7 +315,7 @@ class StravaAPI {
    */
   shouldPostActivity(activity, options = {}) {
     const { skipAgeFilter = false } = options;
-    
+
     // Filter out private activities - these should never be shared publicly
     if (activity.private === true) {
       logger.strava.debug('Skipping private activity', {
@@ -350,7 +357,7 @@ class StravaAPI {
       const activityDate = new Date(activity.start_date);
       const now = new Date();
       const hoursDiff = (now - activityDate) / (1000 * 60 * 60);
-      
+
       if (hoursDiff > 24) {
         logger.strava.debug('Skipping old activity', {
           name: activity.name,

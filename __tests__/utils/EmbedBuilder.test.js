@@ -1,6 +1,21 @@
 const { EmbedBuilder } = require('discord.js');
+const config = require('../../config/config');
 const ActivityEmbedBuilder = require('../../src/utils/EmbedBuilder');
 const ActivityFormatter = require('../../src/utils/ActivityFormatter');
+
+
+jest.mock('../../config/config', () => ({
+  strava: {
+    baseUrl: 'https://www.strava.com/api/v3',
+    authUrl: 'https://www.strava.com/oauth/authorize',
+    tokenUrl: 'https://www.strava.com/oauth/token',
+    clientId: 'test_client_id',
+    clientSecret: 'test_client_secret'
+  },
+  server: {
+    baseUrl: 'https://test.example.com'
+  }
+}));
 
 // Mock EmbedBuilder methods
 const mockEmbedBuilder = {
@@ -27,7 +42,8 @@ describe('ActivityEmbedBuilder', () => {
     
     // Setup default mock returns
     ActivityFormatter.escapeDiscordMarkdown.mockImplementation(text => text);
-    ActivityFormatter.getActivityColor.mockReturnValue('#FC4C02');
+    ActivityFormatter.getActivityTypeColor.mockReturnValue('#FC4C02');
+    ActivityFormatter.getActivityTypeIcon.mockReturnValue('🏃');
     ActivityFormatter.formatDistance.mockReturnValue('5.00 km');
     ActivityFormatter.formatTime.mockReturnValue('30:00');
     ActivityFormatter.formatPace.mockReturnValue('6:00/km');
@@ -70,7 +86,7 @@ describe('ActivityEmbedBuilder', () => {
       expect(mockEmbedBuilder.setTimestamp).toHaveBeenCalledWith(new Date('2024-01-01T10:00:00Z'));
       expect(mockEmbedBuilder.setURL).toHaveBeenCalledWith('https://www.strava.com/activities/12345');
       expect(ActivityFormatter.escapeDiscordMarkdown).toHaveBeenCalledWith('Morning Run');
-      expect(ActivityFormatter.getActivityColor).toHaveBeenCalledWith('Run');
+      expect(ActivityFormatter.getActivityTypeColor).toHaveBeenCalledWith('Run');
     });
 
     it('should create embed with posted type', () => {
@@ -81,8 +97,8 @@ describe('ActivityEmbedBuilder', () => {
         iconURL: 'https://cdn.discordapp.com/avatars/123/avatar.png'
       });
       expect(mockEmbedBuilder.setFooter).toHaveBeenCalledWith({
-        iconURL: "https://cdn.worldvectorlogo.com/logos/strava-1.svg",
-        text: "Powered by Strava"
+        iconURL: 'https://cdn.worldvectorlogo.com/logos/strava-1.svg',
+        text: 'Powered by Strava'
       });
     });
 
@@ -94,8 +110,8 @@ describe('ActivityEmbedBuilder', () => {
         iconURL: 'https://cdn.discordapp.com/avatars/123/avatar.png'
       });
       expect(mockEmbedBuilder.setFooter).toHaveBeenCalledWith({
-        iconURL: "https://cdn.worldvectorlogo.com/logos/strava-1.svg",
-        text: "Latest Activity • Powered by Strava"
+        iconURL: 'https://cdn.worldvectorlogo.com/logos/strava-1.svg',
+        text: 'Latest Activity • Powered by Strava'
       });
     });
 
@@ -126,12 +142,14 @@ describe('ActivityEmbedBuilder', () => {
     it('should add core activity fields', () => {
       ActivityEmbedBuilder.createActivityEmbed(mockActivity);
 
-      expect(mockEmbedBuilder.addFields).toHaveBeenCalledWith([
+      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(1,[
         { name: '📏 Distance', value: '5.00 km', inline: true },
-        { name: '⏱️ Time', value: '30:00', inline: true },
-        { name: '🏃 Pace', value: '6:00/km', inline: true }
+        { name: '⏱️ Time', value: '30:00', inline: true }
       ]);
-      
+
+      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(2, [ 
+        { name: '🏃 Pace', value: '6:00/km', inline: true } 
+      ]);
       expect(ActivityFormatter.formatDistance).toHaveBeenCalledWith(5000);
       expect(ActivityFormatter.formatTime).toHaveBeenCalledWith(1800);
       expect(ActivityFormatter.formatPace).toHaveBeenCalledWith(5000, 1800);
@@ -146,9 +164,9 @@ describe('ActivityEmbedBuilder', () => {
 
       ActivityEmbedBuilder.createActivityEmbed(activityWithElevation);
 
-      // Should be called twice - once for core fields, once for elevation
-      expect(mockEmbedBuilder.addFields).toHaveBeenCalledTimes(2);
-      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(2, [
+      // Should be called 3 times - twice for core fields, once for elevation
+      expect(mockEmbedBuilder.addFields).toHaveBeenCalledTimes(3);
+      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(3, [
         { name: '⛰️ Elevation Gain', value: '150m', inline: true }
       ]);
     });
@@ -157,7 +175,7 @@ describe('ActivityEmbedBuilder', () => {
       const activityWithHR = { ...mockActivity, average_heartrate: 145 };
       ActivityEmbedBuilder.createActivityEmbed(activityWithHR);
 
-      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(2, [{
+      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(3, [{
         name: '❤️ Avg Heart Rate',
         value: '145 bpm',
         inline: true,
@@ -174,7 +192,7 @@ describe('ActivityEmbedBuilder', () => {
       ActivityEmbedBuilder.createActivityEmbed(minimalActivity);
 
       // Only core fields should be added
-      expect(mockEmbedBuilder.addFields).toHaveBeenCalledTimes(1);
+      expect(mockEmbedBuilder.addFields).toHaveBeenCalledTimes(2);
     });
 
     it('should add map image when available', () => {
@@ -243,11 +261,11 @@ describe('ActivityEmbedBuilder', () => {
 
     it('should handle different activity types', () => {
       const rideActivity = { ...mockActivity, type: 'Ride' };
-      ActivityFormatter.getActivityColor.mockReturnValue('#0074D9');
+      ActivityFormatter.getActivityTypeColor.mockReturnValue('#0074D9');
 
       ActivityEmbedBuilder.createActivityEmbed(rideActivity);
 
-      expect(ActivityFormatter.getActivityColor).toHaveBeenCalledWith('Ride');
+      expect(ActivityFormatter.getActivityTypeColor).toHaveBeenCalledWith('Ride');
       expect(mockEmbedBuilder.setColor).toHaveBeenCalledWith('#0074D9');
     });
 
@@ -291,9 +309,11 @@ describe('ActivityEmbedBuilder', () => {
 
       ActivityEmbedBuilder.createActivityEmbed(zeroActivity);
 
-      expect(mockEmbedBuilder.addFields).toHaveBeenCalledWith([
+      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(1,[
         { name: '📏 Distance', value: '0.00 km', inline: true },
-        { name: '⏱️ Time', value: '0:00', inline: true },
+        { name: '⏱️ Time', value: '0:00', inline: true }
+      ]);
+      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(2, [
         { name: '🏃 Pace', value: 'N/A', inline: true }
       ]);
     });
@@ -326,7 +346,7 @@ describe('ActivityEmbedBuilder', () => {
       };
 
       ActivityEmbedBuilder.createActivityEmbed(activityWithElevation);
-      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(2, [
+      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(3, [
         { name: '⛰️ Elevation Gain', value: '200m', inline: true }
       ]);
     });
@@ -339,7 +359,7 @@ describe('ActivityEmbedBuilder', () => {
       };
 
       ActivityEmbedBuilder.createActivityEmbed(activityWithHR);
-      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(2, [
+      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(3, [
         { name: '❤️ Avg Heart Rate', value: '160 bpm', inline: true }
       ]);
     });
@@ -353,12 +373,12 @@ describe('ActivityEmbedBuilder', () => {
 
       ActivityEmbedBuilder.createActivityEmbed(activityWithBoth);
       // Heart rate is added first
-      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(2, [
+      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(3, [
         { name: '❤️ Avg Heart Rate', value: '155 bpm', inline: true }
       ]);
 
       // Then elevation
-      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(3, [
+      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(4, [
         { name: '⛰️ Elevation Gain', value: '300m', inline: true }
       ]);
     });

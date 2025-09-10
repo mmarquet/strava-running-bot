@@ -1,19 +1,19 @@
 const ActivityFormatter = require('../../src/utils/ActivityFormatter');
 
 describe('ActivityFormatter', () => {
-  describe('getActivityColor', () => {
+  describe('getActivityTypeColor', () => {
     it('should return correct color for Run activity', () => {
-      const color = ActivityFormatter.getActivityColor('Run');
+      const color = ActivityFormatter.getActivityTypeColor('Run');
       expect(color).toBe('#FC4C02');
     });
 
     it('should return correct color for Ride activity', () => {
-      const color = ActivityFormatter.getActivityColor('Ride');
+      const color = ActivityFormatter.getActivityTypeColor('Ride');
       expect(color).toBe('#0074D9');
     });
 
     it('should return default color for unknown activity', () => {
-      const color = ActivityFormatter.getActivityColor('UnknownActivity');
+      const color = ActivityFormatter.getActivityTypeColor('UnknownActivity');
       expect(color).toBe('#FC4C02');
     });
   });

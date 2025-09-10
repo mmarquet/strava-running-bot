@@ -8,7 +8,7 @@ class ActivityFormatter {
    * @param {string} activityType - The type of activity (Run, Ride, etc.)
    * @returns {string} Hex color code
    */
-  static getActivityColor(activityType) {
+  static getActivityTypeColor(activityType) {
     const colors = {
       'Run': '#FC4C02',      // Strava orange
       'Ride': '#0074D9',     // Blue
@@ -21,6 +21,26 @@ class ActivityFormatter {
     
     return colors[activityType] || colors.default;
   }
+
+  /**
+   * Get activity icon based on type
+   * @param {string} activityType - The type of activity (Run, Ride, etc.)
+   * @returns {string} Hex color code
+   */
+  static getActivityTypeIcon(activityType) {
+    const icon = {
+      'Run': '🏃',      
+      'Ride': '🚴',   
+      'Swim': '🏊',   
+      'Walk': '🚶',   
+      'Hike': '🥾',   
+      'Workout': '🏋️',
+      'default': '🏃' 
+    };
+    
+    return icon[activityType] || icon.default;
+  }
+
 
   /**
    * Format distance from meters to kilometers
@@ -65,6 +85,22 @@ class ActivityFormatter {
     const seconds = Math.round(paceInSecondsPerKm % 60);
     
     return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
+  }
+
+  /**
+   * Format speed from distance and time
+   * @param {number} distanceInMeters - Distance in meters
+   * @param {number} timeInSeconds - Time in seconds
+   * @returns {string} Formatted speed string (km/h)
+   */
+  static formatSpeed(distanceInMeters, timeInSeconds) {
+    if (timeInSeconds === 0) return 'N/A';
+    
+    const hours = timeInSeconds / 3600;
+    const kmDistance = distanceInMeters / 1000;
+    const speedKmh = kmDistance / hours;
+    
+    return `${speedKmh.toFixed(1)} km/h`;
   }
 
   /**

@@ -576,7 +576,8 @@ describe('DiscordCommands', () => {
       await discordCommands.handleRegisterCommand(mockInteraction);
 
       expect(mockInteraction.reply).toHaveBeenCalledWith({
-        embeds: [expect.any(Object)]
+        embeds: [expect.any(Object)],
+        ephemeral: true
       });
     });
 

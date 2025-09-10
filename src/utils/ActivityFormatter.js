@@ -88,6 +88,22 @@ class ActivityFormatter {
   }
 
   /**
+   * Format speed from distance and time
+   * @param {number} distanceInMeters - Distance in meters
+   * @param {number} timeInSeconds - Time in seconds
+   * @returns {string} Formatted speed string (km/h)
+   */
+  static formatSpeed(distanceInMeters, timeInSeconds) {
+    if (timeInSeconds === 0) return 'N/A';
+    
+    const hours = timeInSeconds / 3600;
+    const kmDistance = distanceInMeters / 1000;
+    const speedKmh = kmDistance / hours;
+    
+    return `${speedKmh.toFixed(1)} km/h`;
+  }
+
+  /**
    * Escape Discord markdown characters to prevent formatting issues
    * @param {string} text - Text that may contain Discord markdown characters
    * @returns {string} Text with escaped markdown characters

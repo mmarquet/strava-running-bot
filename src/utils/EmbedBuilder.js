@@ -111,6 +111,7 @@ class ActivityEmbedBuilder {
    * @param {Object} activity - Activity data
    */
   static _addCoreActivityFields(embed, activity) {
+    const activity_time = activity.isRace ? activity.elapsed_time : activity.moving_time;
     embed.addFields([
       {
         name: '📏 Distance',
@@ -119,15 +120,27 @@ class ActivityEmbedBuilder {
       },
       {
         name: '⏱️ Time',
-        value: ActivityFormatter.formatTime(activity.moving_time),
+        value: ActivityFormatter.formatTime(activity_time),
         inline: true,
-      },
-      {
-        name: '🏃 Pace',
-        value: ActivityFormatter.formatPace(activity.distance, activity.moving_time),
-        inline: true,
-      },
+      }
     ]);
+    if (activity.type === 'Run' || activity.type === 'Walk') {
+      embed.addFields([
+        {
+          name: '🏃 Pace',
+          value: ActivityFormatter.formatPace(activity.distance, activity_time),
+          inline: true,
+        },
+      ]);
+    } else if (activity.type === 'Ride') {
+      embed.addFields([
+        {
+          name: '🚴 Speed',
+          value: ActivityFormatter.formatSpeed(activity.distance, activity_time),
+          inline: true,
+        },
+      ]);
+    }
   }
 
   /**

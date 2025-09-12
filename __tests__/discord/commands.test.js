@@ -35,7 +35,21 @@ jest.mock('discord.js', () => {
               setName: jest.fn().mockReturnThis(),
               setDescription: jest.fn().mockReturnThis(),
               setRequired: jest.fn().mockReturnThis(),
+              setMaxLength: jest.fn().mockReturnThis(),
+              addChoices: jest.fn().mockReturnThis(),
               setAutocomplete: jest.fn().mockReturnThis()
+            };
+            optionCallback(option);
+            subcommand.options.push(option);
+            return subcommand;
+          }),
+          addIntegerOption: jest.fn().mockImplementation((optionCallback) => {
+            const option = {
+              setName: jest.fn().mockReturnThis(),
+              setDescription: jest.fn().mockReturnThis(),
+              setRequired: jest.fn().mockReturnThis(),
+              setMinValue: jest.fn().mockReturnThis(),
+              setMaxValue: jest.fn().mockReturnThis()
             };
             optionCallback(option);
             subcommand.options.push(option);
@@ -52,6 +66,8 @@ jest.mock('discord.js', () => {
           setName: jest.fn().mockReturnThis(),
           setDescription: jest.fn().mockReturnThis(),
           setRequired: jest.fn().mockReturnThis(),
+          setMaxLength: jest.fn().mockReturnThis(),
+          addChoices: jest.fn().mockReturnThis(),
           setAutocomplete: jest.fn().mockImplementation((auto) => {
             option.autocomplete = auto;
             return option;
@@ -232,7 +248,7 @@ describe('DiscordCommands', () => {
     it('should return array of slash commands', () => {
       const commands = discordCommands.getCommands();
 
-      expect(commands).toHaveLength(4);
+      expect(commands).toHaveLength(7); // members, register, botstatus, last, race, teamraces, scheduler
       expect(commands.every(cmd => cmd instanceof SlashCommandBuilder)).toBe(true);
     });
 

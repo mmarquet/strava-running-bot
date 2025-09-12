@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+
+# Testing
+coverage/
+__tests__/
+*.test.js
+jest.config.js
+jest.setup.js
+
+# Git
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Environment files (use secrets or volumes instead)
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+
+# Build artifacts
+dist/
+build/
+
+# Documentation
+README.md
+CLAUDE.md
+FEATURE_SUMMARY.md
+docs/
+*.md
+
+# Development files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Linting and formatting
+.eslintrc*
+eslint.config.js
+.prettierrc*
+.markdownlint.json
+
+# SonarQube
+sonar-project.properties
+
+# Docker files (don't copy into container)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Data directory (should be mounted as volume)
+data/
+
+# Package lock is copied separately in Dockerfile
+# package-lock.json

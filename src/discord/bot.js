@@ -162,6 +162,32 @@ class DiscordBot {
     }
     logger.discord.info('Discord bot stopped');
   }
+
+  // Get the Discord channel for posting messages
+  async getChannel() {
+    if (!config.discord.channelId) {
+      logger.discord.error('Missing Discord channel ID for scheduler');
+      return null;
+    }
+
+    try {
+      const channel = await this.client.channels.fetch(config.discord.channelId);
+      
+      if (!channel) {
+        logger.discord.error('Discord channel not found for scheduler');
+        return null;
+      }
+
+      return channel;
+
+    } catch (error) {
+      logger.discord.error('Failed to fetch Discord channel for scheduler', {
+        error: error.message,
+        channelId: config.discord.channelId
+      });
+      return null;
+    }
+  }
 }
 
 module.exports = DiscordBot;

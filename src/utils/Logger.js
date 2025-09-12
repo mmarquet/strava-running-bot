@@ -42,7 +42,9 @@ class Logger {
       MEMBER: chalk.magenta,
       ACTIVITY: chalk.yellow,
       SERVER: chalk.cyan,
-      SYSTEM: chalk.white
+      SYSTEM: chalk.white,
+      DATABASE: chalk.purple,
+      SCHEDULER: chalk.magentaBright
     };
   }
 
@@ -205,6 +207,20 @@ class Logger {
     warn: (message, data) => this.warn('SERVER', message, data),
     info: (message, data) => this.info('SERVER', message, data),
     debug: (message, data) => this.debug('SERVER', message, data)
+  };
+
+  database = {
+    error: (message, data) => this.error('DATABASE', message, data),
+    warn: (message, data) => this.warn('DATABASE', message, data),
+    info: (message, data) => this.info('DATABASE', message, data),
+    debug: (message, data) => this.debug('DATABASE', message, data)
+  };
+
+  scheduler = {
+    error: (message, data) => this.error('SCHEDULER', message, data),
+    warn: (message, data) => this.warn('SCHEDULER', message, data),
+    info: (message, data) => this.info('SCHEDULER', message, data),
+    debug: (message, data) => this.debug('SCHEDULER', message, data)
   };
 
   /**

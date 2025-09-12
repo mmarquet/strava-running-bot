@@ -1,12 +1,14 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const ActivityEmbedBuilder = require('../utils/EmbedBuilder');
 const DiscordUtils = require('../utils/DiscordUtils');
+const RaceManager = require('../managers/RaceManager');
 const logger = require('../utils/Logger');
 const config = require('../../config/config');
 
 class DiscordCommands {
   constructor(activityProcessor) {
     this.activityProcessor = activityProcessor;
+    this.raceManager = new RaceManager();
   }
 
   // Define all slash commands
@@ -78,7 +80,235 @@ class DiscordCommands {
             .setDescription('Team member name (first name, last name, or @mention)')
             .setRequired(true)
             .setAutocomplete(true)
+        ),
+
+      // Race management commands
+      new SlashCommandBuilder()
+        .setName('race')
+        .setDescription('Manage your upcoming races')
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('add')
+            .setDescription('Add an upcoming race')
+            .addStringOption(option =>
+              option
+                .setName('name')
+                .setDescription('Race name')
+                .setRequired(true)
+                .setMaxLength(100)
+            )
+            .addStringOption(option =>
+              option
+                .setName('date')
+                .setDescription('Race date (YYYY-MM-DD format, e.g. 2025-04-21)')
+                .setRequired(true)
+            )
+            .addStringOption(option =>
+              option
+                .setName('race_type')
+                .setDescription('Type of race')
+                .setRequired(true)
+                .addChoices(
+                  { name: 'Road Race', value: 'road' },
+                  { name: 'Trail Race', value: 'trail' }
+                )
+            )
+            .addStringOption(option =>
+              option
+                .setName('distance_preset')
+                .setDescription('Distance (for road races)')
+                .setRequired(false)
+                .addChoices(
+                  { name: '5K', value: '5' },
+                  { name: '10K', value: '10' },
+                  { name: 'Half Marathon (21.1K)', value: '21.1' },
+                  { name: 'Marathon (42.2K)', value: '42.2' },
+                  { name: 'Other (specify custom distance)', value: 'other' }
+                )
+            )
+            .addStringOption(option =>
+              option
+                .setName('custom_distance')
+                .setDescription('Custom distance (km) - use when distance_preset is "Other" or for trail races')
+                .setRequired(false)
+                .setMaxLength(10)
+            )
+            .addStringOption(option =>
+              option
+                .setName('location')
+                .setDescription('Race location')
+                .setRequired(false)
+                .setMaxLength(100)
+            )
+            .addStringOption(option =>
+              option
+                .setName('goal')
+                .setDescription('Goal time (e.g. 1:45:00)')
+                .setRequired(false)
+                .setMaxLength(20)
+            )
+            .addStringOption(option =>
+              option
+                .setName('notes')
+                .setDescription('Additional notes')
+                .setRequired(false)
+                .setMaxLength(500)
+            )
         )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('list')
+            .setDescription('List your races')
+            .addStringOption(option =>
+              option
+                .setName('status')
+                .setDescription('Filter by status')
+                .setRequired(false)
+                .addChoices(
+                  { name: 'Registered', value: 'registered' },
+                  { name: 'Completed', value: 'completed' },
+                  { name: 'Cancelled', value: 'cancelled' }
+                )
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('remove')
+            .setDescription('Remove a race')
+            .addIntegerOption(option =>
+              option
+                .setName('race_id')
+                .setDescription('Race ID (from race list)')
+                .setRequired(true)
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('update')
+            .setDescription('Update race details')
+            .addIntegerOption(option =>
+              option
+                .setName('race_id')
+                .setDescription('Race ID (from race list)')
+                .setRequired(true)
+            )
+            .addStringOption(option =>
+              option
+                .setName('name')
+                .setDescription('New race name')
+                .setRequired(false)
+                .setMaxLength(100)
+            )
+            .addStringOption(option =>
+              option
+                .setName('date')
+                .setDescription('New race date (YYYY-MM-DD)')
+                .setRequired(false)
+            )
+            .addStringOption(option =>
+              option
+                .setName('distance')
+                .setDescription('New distance')
+                .setRequired(false)
+                .setMaxLength(20)
+            )
+            .addStringOption(option =>
+              option
+                .setName('location')
+                .setDescription('New location')
+                .setRequired(false)
+                .setMaxLength(100)
+            )
+            .addStringOption(option =>
+              option
+                .setName('goal')
+                .setDescription('New goal time')
+                .setRequired(false)
+                .setMaxLength(20)
+            )
+            .addStringOption(option =>
+              option
+                .setName('status')
+                .setDescription('Update status')
+                .setRequired(false)
+                .addChoices(
+                  { name: 'Registered', value: 'registered' },
+                  { name: 'Completed', value: 'completed' },
+                  { name: 'Cancelled', value: 'cancelled' },
+                  { name: 'DNS (Did Not Start)', value: 'dns' },
+                  { name: 'DNF (Did Not Finish)', value: 'dnf' }
+                )
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('upcoming')
+            .setDescription('Show upcoming races for all team members')
+            .addIntegerOption(option =>
+              option
+                .setName('days')
+                .setDescription('Number of days ahead to show (default: 30)')
+                .setRequired(false)
+                .setMinValue(1)
+                .setMaxValue(365)
+            )
+        ),
+
+      // Team races command (admin only)
+      new SlashCommandBuilder()
+        .setName('teamraces')
+        .setDescription('View all team races')
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('list')
+            .setDescription('List all team races')
+            .addStringOption(option =>
+              option
+                .setName('status')
+                .setDescription('Filter by status')
+                .setRequired(false)
+                .addChoices(
+                  { name: 'Registered', value: 'registered' },
+                  { name: 'Completed', value: 'completed' },
+                  { name: 'Cancelled', value: 'cancelled' }
+                )
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('upcoming')
+            .setDescription('Show upcoming races for all members')
+            .addIntegerOption(option =>
+              option
+                .setName('days')
+                .setDescription('Number of days ahead to show (default: 30)')
+                .setRequired(false)
+                .setMinValue(1)
+                .setMaxValue(365)
+            )
+        )
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+
+      // Scheduler test commands (admin only)
+      new SlashCommandBuilder()
+        .setName('scheduler')
+        .setDescription('Test race scheduler functionality')
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('weekly')
+            .setDescription('Manually trigger weekly race announcement')
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('monthly')
+            .setDescription('Manually trigger monthly race announcement')
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('status')
+            .setDescription('Show scheduler status')
+        )
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     ];
   }
 
@@ -107,6 +337,15 @@ class DiscordCommands {
         break;
       case 'last':
         await this.handleLastActivityCommand(interaction, options);
+        break;
+      case 'race':
+        await this.handleRaceCommand(interaction, options);
+        break;
+      case 'teamraces':
+        await this.handleTeamRacesCommand(interaction, options);
+        break;
+      case 'scheduler':
+        await this.handleSchedulerCommand(interaction, options);
         break;
       default:
         await interaction.reply({ 
@@ -159,7 +398,7 @@ class DiscordCommands {
 
     try {
       const members = await this.activityProcessor.memberManager.getAllMembers();
-      const memberStats = this.activityProcessor.memberManager.getStats();
+      const memberStats = await this.activityProcessor.memberManager.getStats();
 
       if (members.length === 0) {
         await interaction.editReply({
@@ -429,8 +668,8 @@ class DiscordCommands {
     await interaction.deferReply({ ephemeral: true });
 
     try {
-      const stats = this.activityProcessor.getStats();
-      const memberStats = this.activityProcessor.memberManager.getStats();
+      const stats = await this.activityProcessor.getStats();
+      const memberStats = await this.activityProcessor.memberManager.getStats();
       const rateLimitStats = this.activityProcessor.stravaAPI.getRateLimiterStats();
 
       const embed = new EmbedBuilder()
@@ -638,6 +877,617 @@ class DiscordCommands {
         });
         await interaction.respond([]);
       }
+    }
+  }
+
+  // === RACE COMMAND HANDLERS ===
+
+  // Handle race subcommands
+  async handleRaceCommand(interaction, options) {
+    const subcommand = options.getSubcommand();
+
+    switch (subcommand) {
+    case 'add':
+      await this.addRace(interaction, options);
+      break;
+    case 'list':
+      await this.listUserRaces(interaction, options);
+      break;
+    case 'remove':
+      await this.removeRace(interaction, options);
+      break;
+    case 'update':
+      await this.updateRace(interaction, options);
+      break;
+    case 'upcoming':
+      await this.showUpcomingRaces(interaction, options, true);
+      break;
+    }
+  }
+
+  // Handle team races subcommands (admin only)
+  async handleTeamRacesCommand(interaction, options) {
+    const subcommand = options.getSubcommand();
+
+    switch (subcommand) {
+    case 'list':
+      await this.listAllTeamRaces(interaction, options);
+      break;
+    case 'upcoming':
+      await this.showUpcomingRaces(interaction, options, true);
+      break;
+    }
+  }
+
+  // Add a new race
+  async addRace(interaction, options) {
+    await interaction.deferReply({ ephemeral: false });
+
+    try {
+      const raceType = options.getString('race_type');
+      const distancePreset = options.getString('distance_preset');
+      const customDistance = options.getString('custom_distance');
+      
+      // Process distance based on race type and user input
+      let finalDistance = null;
+      let distanceKm = null;
+      
+      if (raceType === 'road') {
+        if (distancePreset && distancePreset !== 'other') {
+          // Use preset distance
+          const km = parseFloat(distancePreset);
+          finalDistance = this.formatDistanceDisplay(km);
+          distanceKm = km.toString();
+        } else if (distancePreset === 'other' && customDistance) {
+          // Use custom distance for "other" road race
+          const km = parseFloat(customDistance.replace(/[^\d.]/g, ''));
+          if (isNaN(km) || km <= 0) {
+            throw new Error('Custom distance must be a valid positive number');
+          }
+          finalDistance = `${km}km`;
+          distanceKm = km.toString();
+        }
+      } else if (raceType === 'trail' && customDistance) {
+        // Trail races always use custom distance
+        const km = parseFloat(customDistance.replace(/[^\d.]/g, ''));
+        if (isNaN(km) || km <= 0) {
+          throw new Error('Distance must be a valid positive number for trail races');
+        }
+        finalDistance = `${km}km`;
+        distanceKm = km.toString();
+      }
+
+      const raceData = {
+        name: options.getString('name'),
+        raceDate: options.getString('date'),
+        raceType: raceType,
+        distance: finalDistance,
+        distanceKm: distanceKm,
+        location: options.getString('location'),
+        goalTime: options.getString('goal'),
+        notes: options.getString('notes')
+      };
+
+      const race = await this.raceManager.addRace(interaction.user.id, raceData);
+
+      const embed = new EmbedBuilder()
+        .setTitle(`🏃 ${raceType === 'road' ? '🛣️' : '�️'} Race Added!`)
+        .setColor(raceType === 'road' ? '#00FF88' : '#8B4513')
+        .setDescription(this.raceManager.formatRaceDisplay(race, false))
+        .addFields([{
+          name: 'Race ID',
+          value: `#${race.id}`,
+          inline: true
+        }])
+        .setFooter({ text: 'Use /race list to see all your races' })
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [embed] });
+
+    } catch (error) {
+      logger.discord.error('Error adding race', {
+        user: interaction.user.tag,
+        error: error.message
+      });
+      
+      await interaction.editReply({
+        content: `❌ Failed to add race: ${error.message}`,
+        ephemeral: false
+      });
+    }
+  }
+
+  // Helper function to format distance display for standard race distances
+  formatDistanceDisplay(km) {
+    if (km === 5) return '5K';
+    if (km === 10) return '10K';
+    if (km === 21.1) return 'Half Marathon (21.1K)';
+    if (km === 42.2) return 'Marathon (42.2K)';
+    return `${km}km`;
+  }
+
+  // List user's races
+  async listUserRaces(interaction, options) {
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const status = options.getString('status');
+      const filterOptions = status ? { status } : {};
+      
+      const races = await this.raceManager.getMemberRaces(interaction.user.id, filterOptions);
+
+      if (races.length === 0) {
+        const statusText = status ? ` with status "${status}"` : '';
+        await interaction.editReply({
+          content: `📭 No races found${statusText}. Use \`/race add\` to add your first race!`,
+          ephemeral: true
+        });
+        return;
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle(`🏃 Your Races${status ? ` (${status})` : ''}`)
+        .setColor('#FC4C02')
+        .setDescription(`Found ${races.length} race${races.length === 1 ? '' : 's'}`)
+        .setTimestamp();
+
+      // Group races into chunks of 5 for better display
+      const raceChunks = DiscordUtils.chunkArray(races, 5);
+      
+      raceChunks[0].forEach((race) => {
+        embed.addFields([{
+          name: `#${race.id} - ${race.name}`,
+          value: this.raceManager.formatRaceDisplay(race),
+          inline: false
+        }]);
+      });
+
+      if (raceChunks.length > 1) {
+        embed.setFooter({ text: `Showing first 5 of ${races.length} races` });
+      }
+
+      await interaction.editReply({ embeds: [embed] });
+
+    } catch (error) {
+      logger.discord.error('Error listing user races', {
+        user: interaction.user.tag,
+        error: error.message
+      });
+      
+      await interaction.editReply({
+        content: '❌ Failed to retrieve your races.',
+        ephemeral: true
+      });
+    }
+  }
+
+  // Remove a race
+  async removeRace(interaction, options) {
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const raceId = options.getInteger('race_id');
+      
+      const removedRace = await this.raceManager.removeRace(raceId, interaction.user.id);
+
+      const embed = new EmbedBuilder()
+        .setTitle('🗑️ Race Removed')
+        .setColor('#FF4444')
+        .setDescription(`Successfully removed **${removedRace.name}**`)
+        .addFields([
+          {
+            name: 'Race Date',
+            value: new Date(removedRace.raceDate + 'T00:00:00').toLocaleDateString(),
+            inline: true
+          },
+          {
+            name: 'Distance',
+            value: removedRace.distance || 'N/A',
+            inline: true
+          }
+        ])
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [embed] });
+
+    } catch (error) {
+      logger.discord.error('Error removing race', {
+        user: interaction.user.tag,
+        raceId: options.getInteger('race_id'),
+        error: error.message
+      });
+      
+      await interaction.editReply({
+        content: `❌ Failed to remove race: ${error.message}`,
+        ephemeral: true
+      });
+    }
+  }
+
+  // Update a race
+  async updateRace(interaction, options) {
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const raceId = options.getInteger('race_id');
+      
+      const updates = {};
+      if (options.getString('name')) updates.name = options.getString('name');
+      if (options.getString('date')) updates.raceDate = options.getString('date');
+      if (options.getString('distance')) updates.distance = options.getString('distance');
+      if (options.getString('location')) updates.location = options.getString('location');
+      if (options.getString('goal')) updates.goalTime = options.getString('goal');
+      if (options.getString('status')) updates.status = options.getString('status');
+
+      if (Object.keys(updates).length === 0) {
+        await interaction.editReply({
+          content: '❌ No updates provided. Please specify at least one field to update.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      const updatedRace = await this.raceManager.updateRace(raceId, interaction.user.id, updates);
+
+      const embed = new EmbedBuilder()
+        .setTitle('✏️ Race Updated')
+        .setColor('#00AAFF')
+        .setDescription(this.raceManager.formatRaceDisplay(updatedRace))
+        .addFields([{
+          name: 'Updated Fields',
+          value: Object.keys(updates).map(key => `• ${key}`).join('\n'),
+          inline: true
+        }])
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [embed] });
+
+    } catch (error) {
+      logger.discord.error('Error updating race', {
+        user: interaction.user.tag,
+        raceId: options.getInteger('race_id'),
+        error: error.message
+      });
+      
+      await interaction.editReply({
+        content: `❌ Failed to update race: ${error.message}`,
+        ephemeral: true
+      });
+    }
+  }
+
+  // Show upcoming races
+  async showUpcomingRaces(interaction, options, isTeamCommand = false) {
+    await interaction.deferReply({ ephemeral: !isTeamCommand });
+
+    try {
+      const days = options.getInteger('days') || 30;
+      const upcomingRaces = await this.raceManager.getUpcomingRaces(days);
+
+      if (upcomingRaces.length === 0) {
+        await interaction.editReply({
+          content: `📭 No upcoming races found in the next ${days} days.`,
+          ephemeral: !isTeamCommand
+        });
+        return;
+      }
+
+      // Get member data for each race
+      const racesWithMembers = await Promise.all(
+        upcomingRaces.map(async (race) => {
+          const member = await this.activityProcessor.memberManager.getMemberByAthleteId(race.member_athlete_id);
+          return {
+            ...race,
+            memberName: member?.discordUser?.displayName || `${member?.athlete?.firstname} ${member?.athlete?.lastname}` || 'Unknown'
+          };
+        })
+      );
+
+      const embed = new EmbedBuilder()
+        .setTitle('🏃‍♀️ Upcoming Team Races')
+        .setColor('#FFA500')
+        .setDescription(`${upcomingRaces.length} upcoming race${upcomingRaces.length === 1 ? '' : 's'} in the next ${days} days`)
+        .setTimestamp();
+
+      // Group by date and show races
+      const racesByDate = {};
+      racesWithMembers.forEach(race => {
+        const date = race.race_date;
+        if (!racesByDate[date]) racesByDate[date] = [];
+        racesByDate[date].push(race);
+      });
+
+      // Sort dates and add fields
+      const sortedDates = Object.keys(racesByDate).sort();
+      let fieldCount = 0;
+
+      for (const date of sortedDates) {
+        if (fieldCount >= 10) break; // Discord embed limit
+
+        const dayRaces = racesByDate[date];
+        const raceDate = new Date(date + 'T00:00:00');
+        const daysUntil = this.raceManager.getDaysUntilRace(date);
+        
+        let dayText = `**${raceDate.toLocaleDateString('en-US', { 
+          weekday: 'long', 
+          month: 'long', 
+          day: 'numeric' 
+        })}**`;
+        
+        if (daysUntil === 0) dayText += ' (Today!)';
+        else if (daysUntil === 1) dayText += ' (Tomorrow)';
+        else if (daysUntil > 0) dayText += ` (${daysUntil} days)`;
+
+        const raceList = dayRaces.map(race => {
+          let raceText = `• **${race.name}** - ${race.memberName}`;
+          if (race.distance) raceText += ` (${race.distance})`;
+          if (race.location) raceText += ` at ${race.location}`;
+          return raceText;
+        }).join('\n');
+
+        embed.addFields([{
+          name: dayText,
+          value: raceList,
+          inline: false
+        }]);
+
+        fieldCount++;
+      }
+
+      if (sortedDates.length > 10) {
+        embed.setFooter({ text: `Showing first 10 dates (${upcomingRaces.length} total races)` });
+      }
+
+      await interaction.editReply({ embeds: [embed] });
+
+    } catch (error) {
+      logger.discord.error('Error showing upcoming races', {
+        user: interaction.user.tag,
+        isTeamCommand,
+        error: error.message
+      });
+      
+      await interaction.editReply({
+        content: '❌ Failed to retrieve upcoming races.',
+        ephemeral: !isTeamCommand
+      });
+    }
+  }
+
+  // List all team races (admin only)
+  async listAllTeamRaces(interaction, options) {
+    await interaction.deferReply({ ephemeral: false });
+
+    try {
+      const status = options.getString('status');
+      const filterOptions = status ? { status } : {};
+      
+      const races = await this.raceManager.getAllRaces(filterOptions);
+
+      if (races.length === 0) {
+        const statusText = status ? ` with status "${status}"` : '';
+        await interaction.editReply({
+          content: `📭 No team races found${statusText}.`,
+          ephemeral: true
+        });
+        return;
+      }
+
+      // Get member data for each race
+      const racesWithMembers = await Promise.all(
+        races.map(async (race) => {
+          const member = await this.activityProcessor.memberManager.getMemberByAthleteId(race.member_athlete_id);
+          return {
+            ...race,
+            memberName: member?.discordUser?.displayName || `${member?.athlete?.firstname} ${member?.athlete?.lastname}` || 'Unknown'
+          };
+        })
+      );
+
+      const embed = new EmbedBuilder()
+        .setTitle(`🏃 Team Races${status ? ` (${status})` : ''}`)
+        .setColor('#FC4C02')
+        .setDescription(`Found ${races.length} race${races.length === 1 ? '' : 's'}`)
+        .setTimestamp();
+
+      // Group races into chunks of 10 for better display
+      const raceChunks = DiscordUtils.chunkArray(racesWithMembers, 10);
+      
+      raceChunks[0].forEach((race) => {
+        const raceDate = new Date(race.race_date + 'T00:00:00').toLocaleDateString();
+        embed.addFields([{
+          name: `#${race.id} - ${race.name} (${race.memberName})`,
+          value: `📅 ${raceDate}${race.distance ? ` • 📏 ${race.distance}` : ''}${race.location ? ` • 📍 ${race.location}` : ''}\n${this.raceManager.getStatusEmoji(race.status)} ${race.status.toUpperCase()}`,
+          inline: true
+        }]);
+      });
+
+      if (raceChunks.length > 1) {
+        embed.setFooter({ text: `Showing first 10 of ${races.length} races` });
+      }
+
+      await interaction.editReply({ embeds: [embed] });
+
+    } catch (error) {
+      logger.discord.error('Error listing all team races', {
+        user: interaction.user.tag,
+        error: error.message
+      });
+      
+      await interaction.editReply({
+        content: '❌ Failed to retrieve team races.',
+        ephemeral: true
+      });
+    }
+  }
+
+  // === SCHEDULER COMMAND HANDLERS (ADMIN TESTING) ===
+
+  // Handle scheduler subcommands (admin only)
+  async handleSchedulerCommand(interaction, options) {
+    const subcommand = options.getSubcommand();
+
+    switch (subcommand) {
+    case 'weekly':
+      await this.triggerWeeklyAnnouncement(interaction);
+      break;
+    case 'monthly':
+      await this.triggerMonthlyAnnouncement(interaction);
+      break;
+    case 'status':
+      await this.showSchedulerStatus(interaction);
+      break;
+    }
+  }
+
+  // Manually trigger weekly race announcement
+  async triggerWeeklyAnnouncement(interaction) {
+    await interaction.deferReply({ ephemeral: false });
+
+    try {
+      logger.discord.info('Manually triggering weekly race announcement', {
+        user: interaction.user.tag
+      });
+
+      // Get the scheduler from the activity processor
+      const scheduler = this.activityProcessor.scheduler;
+      
+      if (!scheduler) {
+        await interaction.editReply({
+          content: '❌ Scheduler not available.',
+          ephemeral: false
+        });
+        return;
+      }
+
+      await scheduler.triggerWeeklyAnnouncement();
+
+      await interaction.editReply({
+        content: '✅ Weekly race announcement triggered successfully! Check the channel for the announcement.',
+        ephemeral: false
+      });
+
+    } catch (error) {
+      logger.discord.error('Error triggering weekly race announcement', {
+        user: interaction.user.tag,
+        error: error.message
+      });
+      
+      await interaction.editReply({
+        content: `❌ Failed to trigger weekly race announcement: ${error.message}`,
+        ephemeral: false
+      });
+    }
+  }
+
+  // Manually trigger monthly race announcement
+  async triggerMonthlyAnnouncement(interaction) {
+    await interaction.deferReply({ ephemeral: false });
+
+    try {
+      logger.discord.info('Manually triggering monthly race announcement', {
+        user: interaction.user.tag
+      });
+
+      // Get the scheduler from the activity processor
+      const scheduler = this.activityProcessor.scheduler;
+      
+      if (!scheduler) {
+        await interaction.editReply({
+          content: '❌ Scheduler not available.',
+          ephemeral: false
+        });
+        return;
+      }
+
+      await scheduler.triggerMonthlyAnnouncement();
+
+      await interaction.editReply({
+        content: '✅ Monthly race announcement triggered successfully! Check the channel for the announcement.',
+        ephemeral: false
+      });
+
+    } catch (error) {
+      logger.discord.error('Error triggering monthly race announcement', {
+        user: interaction.user.tag,
+        error: error.message
+      });
+      
+      await interaction.editReply({
+        content: `❌ Failed to trigger monthly race announcement: ${error.message}`,
+        ephemeral: false
+      });
+    }
+  }
+
+  // Show scheduler status
+  async showSchedulerStatus(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const scheduler = this.activityProcessor.scheduler;
+      
+      if (!scheduler) {
+        await interaction.editReply({
+          content: '❌ Scheduler not available.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      const status = scheduler.getStatus();
+      const weeklyRaces = await this.activityProcessor.raceManager.getWeeklyRaces();
+      const monthlyRaces = await this.activityProcessor.raceManager.getMonthlyRaces();
+
+      const embed = new EmbedBuilder()
+        .setTitle('📅 Race Scheduler Status')
+        .setColor('#4169E1')
+        .addFields([
+          {
+            name: 'Scheduler Status',
+            value: status.initialized ? '✅ Running' : '❌ Not initialized',
+            inline: true
+          },
+          {
+            name: 'Active Jobs',
+            value: `${status.jobCount} jobs (${status.activeJobs.join(', ')})`,
+            inline: true
+          },
+          {
+            name: 'This Week\'s Races',
+            value: `${weeklyRaces.length} race${weeklyRaces.length === 1 ? '' : 's'}`,
+            inline: true
+          },
+          {
+            name: 'This Month\'s Races',
+            value: `${monthlyRaces.length} race${monthlyRaces.length === 1 ? '' : 's'}`,
+            inline: true
+          },
+          {
+            name: 'Weekly Schedule',
+            value: 'Every Monday at 8:00 AM UTC',
+            inline: false
+          },
+          {
+            name: 'Monthly Schedule',
+            value: 'First day of month at 8:00 AM UTC',
+            inline: false
+          }
+        ])
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [embed] });
+
+    } catch (error) {
+      logger.discord.error('Error getting scheduler status', {
+        user: interaction.user.tag,
+        error: error.message
+      });
+      
+      await interaction.editReply({
+        content: `❌ Failed to get scheduler status: ${error.message}`,
+        ephemeral: true
+      });
     }
   }
 

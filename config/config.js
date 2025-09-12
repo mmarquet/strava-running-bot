@@ -30,6 +30,21 @@ const config = {
   app: {
     name: 'Strava Running Bot',
     version: '1.0.0',
+  },
+  database: {
+    path: process.env.DATABASE_PATH || '/app/data/bot.db',
+  },
+  scheduler: {
+    // Enable/disable scheduled race announcements
+    weeklyEnabled: process.env.WEEKLY_RACE_ANNOUNCEMENTS !== 'false', // Default: enabled
+    monthlyEnabled: process.env.MONTHLY_RACE_ANNOUNCEMENTS !== 'false', // Default: enabled
+    
+    // Cron schedule patterns
+    weeklySchedule: process.env.WEEKLY_SCHEDULE || '0 8 * * 1', // Every Monday at 8:00 AM
+    monthlySchedule: process.env.MONTHLY_SCHEDULE || '0 8 1 * *', // First day of month at 8:00 AM
+    
+    // Timezone for scheduling (important for proper timing)
+    timezone: process.env.SCHEDULER_TIMEZONE || 'UTC',
   }
 };
 

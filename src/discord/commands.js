@@ -289,6 +289,28 @@ class DiscordCommands {
         )
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
+      // Bot settings command (admin only)
+      new SlashCommandBuilder()
+        .setName('settings')
+        .setDescription('Manage bot settings')
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('channel')
+            .setDescription('Set the Discord channel for bot activities')
+            .addChannelOption(option =>
+              option
+                .setName('channel')
+                .setDescription('Discord channel to use (leave empty to use current channel)')
+                .setRequired(false)
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('view')
+            .setDescription('View current bot settings')
+        )
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+
       // Scheduler test commands (admin only)
       new SlashCommandBuilder()
         .setName('scheduler')
@@ -343,6 +365,9 @@ class DiscordCommands {
         break;
       case 'teamraces':
         await this.handleTeamRacesCommand(interaction, options);
+        break;
+      case 'settings':
+        await this.handleSettingsCommand(interaction, options);
         break;
       case 'scheduler':
         await this.handleSchedulerCommand(interaction, options);
@@ -1486,6 +1511,188 @@ class DiscordCommands {
       
       await interaction.editReply({
         content: `❌ Failed to get scheduler status: ${error.message}`,
+        ephemeral: true
+      });
+    }
+  }
+
+  // === SETTINGS COMMAND HANDLERS (ADMIN ONLY) ===
+
+  // Handle settings subcommands (admin only)
+  async handleSettingsCommand(interaction, options) {
+    const subcommand = options.getSubcommand();
+
+    switch (subcommand) {
+    case 'channel':
+      await this.setDiscordChannel(interaction, options);
+      break;
+    case 'view':
+      await this.viewSettings(interaction);
+      break;
+    }
+  }
+
+  // Set Discord channel for bot activities
+  async setDiscordChannel(interaction, options) {
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const channelOption = options.getChannel('channel');
+      const targetChannel = channelOption || interaction.channel;
+
+      // Validate that it's a text channel
+      if (targetChannel.type !== 0) { // 0 = GUILD_TEXT
+        await interaction.editReply({
+          content: '❌ Please select a text channel.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      // Check if bot has permissions to send messages in the channel
+      const permissions = targetChannel.permissionsFor(interaction.guild.members.me);
+      if (!permissions.has(['SendMessages', 'EmbedLinks'])) {
+        await interaction.editReply({
+          content: `❌ I don't have permission to send messages in ${targetChannel}. Please ensure I have "Send Messages" and "Embed Links" permissions.`,
+          ephemeral: true
+        });
+        return;
+      }
+
+      // Save to database
+      const success = await this.activityProcessor.memberManager.databaseManager.settingsManager.setDiscordChannelId(targetChannel.id);
+
+      if (success) {
+        const embed = new EmbedBuilder()
+          .setTitle('⚙️ Settings Updated')
+          .setColor('#00AA00')
+          .setDescription(`Successfully set Discord channel to ${targetChannel}`)
+          .addFields([
+            {
+              name: 'Channel Name',
+              value: `#${targetChannel.name}`,
+              inline: true
+            },
+            {
+              name: 'Channel ID',
+              value: targetChannel.id,
+              inline: true
+            }
+          ])
+          .setFooter({ text: 'Activities and race announcements will now be posted to this channel' })
+          .setTimestamp();
+
+        await interaction.editReply({ embeds: [embed] });
+
+        // Send a test message to the new channel
+        if (targetChannel.id !== interaction.channel.id) {
+          try {
+            const testEmbed = new EmbedBuilder()
+              .setTitle('🤖 Bot Channel Updated')
+              .setColor('#FC4C02')
+              .setDescription('This channel has been set as the new bot channel for Strava activities and race announcements!')
+              .setTimestamp();
+
+            await targetChannel.send({ embeds: [testEmbed] });
+          } catch (error) {
+            logger.discord.warn('Could not send test message to new channel', {
+              channelId: targetChannel.id,
+              error: error.message
+            });
+          }
+        }
+
+        logger.discord.info('Discord channel updated via command', {
+          user: interaction.user.tag,
+          oldChannel: process.env.DISCORD_CHANNEL_ID,
+          newChannel: targetChannel.id,
+          channelName: targetChannel.name
+        });
+
+      } else {
+        await interaction.editReply({
+          content: '❌ Failed to update channel settings. Please try again.',
+          ephemeral: true
+        });
+      }
+
+    } catch (error) {
+      logger.discord.error('Error setting Discord channel', {
+        user: interaction.user.tag,
+        error: error.message
+      });
+      
+      await interaction.editReply({
+        content: `❌ Failed to update channel: ${error.message}`,
+        ephemeral: true
+      });
+    }
+  }
+
+  // View current bot settings
+  async viewSettings(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const settingsManager = this.activityProcessor.memberManager.databaseManager.settingsManager;
+      const allSettings = await settingsManager.getAllSettings();
+      const channelId = await settingsManager.getDiscordChannelId();
+
+      const embed = new EmbedBuilder()
+        .setTitle('⚙️ Bot Settings')
+        .setColor('#0099FF')
+        .setTimestamp();
+
+      // Discord Channel
+      let channelText = 'Not configured';
+      if (channelId) {
+        try {
+          const channel = await interaction.client.channels.fetch(channelId);
+          channelText = `${channel} (#${channel.name})`;
+        } catch {
+          channelText = `${channelId} (Channel not found)`;
+        }
+      }
+
+      embed.addFields([
+        {
+          name: '📺 Discord Channel',
+          value: channelText,
+          inline: false
+        }
+      ]);
+
+      // Other settings
+      const otherSettings = Object.entries(allSettings)
+        .filter(([key]) => key !== 'discord_channel_id')
+        .slice(0, 10); // Limit to prevent embed overflow
+
+      if (otherSettings.length > 0) {
+        const settingsText = otherSettings
+          .map(([key, setting]) => `**${key}**: ${setting.value || 'Not set'}`)
+          .join('\n');
+
+        embed.addFields([
+          {
+            name: '🔧 Other Settings',
+            value: settingsText,
+            inline: false
+          }
+        ]);
+      }
+
+      embed.setFooter({ text: 'Use /settings channel to update the Discord channel' });
+
+      await interaction.editReply({ embeds: [embed] });
+
+    } catch (error) {
+      logger.discord.error('Error viewing settings', {
+        user: interaction.user.tag,
+        error: error.message
+      });
+      
+      await interaction.editReply({
+        content: '❌ Failed to load settings.',
         ephemeral: true
       });
     }

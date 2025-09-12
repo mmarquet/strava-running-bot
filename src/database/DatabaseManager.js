@@ -3,15 +3,17 @@ const path = require('path');
 const crypto = require('crypto');
 const { eq, and, desc, asc, gte, lte, sql } = require('drizzle-orm');
 const dbConnection = require('./connection');
-const { members, races, migrationLog } = require('./schema');
+const { members, races, migrationLog, settings } = require('./schema');
 const logger = require('../utils/Logger');
 const config = require('../../config/config');
+const SettingsManager = require('../managers/SettingsManager');
 
 class DatabaseManager {
   constructor() {
     this.db = null;
     this.isInitialized = false;
     this.oldDataPath = path.join(__dirname, '../../data/members.json');
+    this.settingsManager = null;
   }
 
   async initialize() {
@@ -22,6 +24,12 @@ class DatabaseManager {
       
       // Check if migration from JSON is needed
       await this.checkAndMigrateFromJson();
+      
+      // Initialize settings (create default settings if they don't exist)
+      await this.initializeSettings();
+      
+      // Initialize settings manager
+      this.settingsManager = new SettingsManager(this.db);
       
       this.isInitialized = true;
       logger.database?.info('DatabaseManager initialized successfully');
@@ -151,6 +159,41 @@ class DatabaseManager {
       created_at: member.registeredAt || new Date().toISOString(),
       updated_at: member.lastTokenRefresh || new Date().toISOString(),
     });
+  }
+
+  // === SETTINGS INITIALIZATION ===
+  async initializeSettings() {
+    try {
+      // Check if default settings exist, if not create them
+      const defaultSettings = [
+        {
+          key: 'discord_channel_id',
+          value: process.env.DISCORD_CHANNEL_ID || '',
+          description: 'Discord channel ID for posting activities and announcements'
+        }
+      ];
+
+      for (const setting of defaultSettings) {
+        // Check if setting already exists
+        const existing = await this.db.select().from(settings).where(eq(settings.key, setting.key)).limit(1);
+        
+        if (existing.length === 0) {
+          // Insert default setting
+          await this.db.insert(settings).values({
+            key: setting.key,
+            value: setting.value,
+            description: setting.description,
+            updated_at: new Date().toISOString()
+          });
+          
+          logger.database?.info('Default setting created', { key: setting.key });
+        }
+      }
+      
+      logger.database?.info('Settings initialization completed');
+    } catch (error) {
+      logger.database?.warn('Failed to initialize settings', { error: error.message });
+    }
   }
 
   // === MEMBER MANAGEMENT ===

@@ -49,8 +49,17 @@ const migrationLog = sqliteTable('migration_log', {
   data_backup: text('data_backup'), // JSON backup of migrated data
 });
 
+// Settings table - store bot configuration that can be changed via commands
+const settings = sqliteTable('settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  description: text('description'),
+  updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
 module.exports = {
   members,
   races, 
   migrationLog,
+  settings,
 };

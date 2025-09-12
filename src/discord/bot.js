@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
 const config = require('../../config/config');
+const dynamicConfig = require('../../config/dynamicConfig');
 const DiscordCommands = require('./commands');
 const ActivityEmbedBuilder = require('../utils/EmbedBuilder');
 const logger = require('../utils/Logger');
@@ -109,8 +110,10 @@ class DiscordBot {
   }
 
   async postActivity(activityData) {
-    if (!config.discord.channelId) {
-      const error = new Error('Missing Discord channel ID');
+    const channelId = await dynamicConfig.getDiscordChannelId();
+    
+    if (!channelId) {
+      const error = new Error('Missing Discord channel ID - use /settings channel to configure');
       logger.discord.error('Failed to post activity to Discord', { error: error.message });
       throw error;
     }
@@ -122,7 +125,7 @@ class DiscordBot {
     }
 
     try {
-      const channel = await this.client.channels.fetch(config.discord.channelId);
+      const channel = await this.client.channels.fetch(channelId);
       
       if (!channel) {
         throw new Error('Discord channel not found');
@@ -136,7 +139,7 @@ class DiscordBot {
         activityType: activityData.type,
         distance: activityData.distance,
         athleteName: `${activityData.athlete?.firstname} ${activityData.athlete?.lastname}`,
-        channelId: config.discord.channelId
+        channelId: channelId
       });
     } catch (error) {
       logger.discord.error('Failed to post activity to Discord', {
@@ -165,13 +168,15 @@ class DiscordBot {
 
   // Get the Discord channel for posting messages
   async getChannel() {
-    if (!config.discord.channelId) {
-      logger.discord.error('Missing Discord channel ID for scheduler');
+    const channelId = await dynamicConfig.getDiscordChannelId();
+    
+    if (!channelId) {
+      logger.discord.error('Missing Discord channel ID for scheduler - use /settings channel to configure');
       return null;
     }
 
     try {
-      const channel = await this.client.channels.fetch(config.discord.channelId);
+      const channel = await this.client.channels.fetch(channelId);
       
       if (!channel) {
         logger.discord.error('Discord channel not found for scheduler');
@@ -183,7 +188,7 @@ class DiscordBot {
     } catch (error) {
       logger.discord.error('Failed to fetch Discord channel for scheduler', {
         error: error.message,
-        channelId: config.discord.channelId
+        channelId: channelId
       });
       return null;
     }

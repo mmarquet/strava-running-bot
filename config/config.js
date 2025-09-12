@@ -51,12 +51,13 @@ const config = {
 // Validate required environment variables
 const requiredEnvVars = [
   'DISCORD_TOKEN',
-  'DISCORD_CHANNEL_ID',
   'STRAVA_CLIENT_ID',
   'STRAVA_CLIENT_SECRET',
   'STRAVA_WEBHOOK_VERIFY_TOKEN',
   'ENCRYPTION_KEY'
 ];
+
+// Note: DISCORD_CHANNEL_ID is now optional as it can be set via /settings command
 
 // BASE_URL is not strictly required since it has a localhost fallback,
 // but we'll warn if it's not set in production

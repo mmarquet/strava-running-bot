@@ -5,6 +5,7 @@ const ActivityQueue = require('../managers/ActivityQueue');
 const Scheduler = require('../managers/Scheduler');
 const RaceManager = require('../managers/RaceManager');
 const config = require('../../config/config');
+const dynamicConfig = require('../../config/dynamicConfig');
 const logger = require('../utils/Logger');
 
 class ActivityProcessor {
@@ -27,6 +28,12 @@ class ActivityProcessor {
       // Initialize database and member manager
       logger.activity.info('Initializing member manager...');
       await this.memberManager.initialize();
+      
+      // Initialize dynamic config with settings manager
+      if (this.memberManager.databaseManager.settingsManager) {
+        dynamicConfig.setSettingsManager(this.memberManager.databaseManager.settingsManager);
+      }
+      
       logger.activity.info('Member manager initialized');
       
       // Start Discord bot

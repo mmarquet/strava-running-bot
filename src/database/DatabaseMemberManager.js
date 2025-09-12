@@ -80,22 +80,159 @@ class DatabaseMemberManager {
   }
 
   async getValidAccessToken(member) {
-    // Implementation depends on your token validation logic
-    // This is a simplified version - you may need to implement token refresh logic
-    const tokens = member.tokens;
+    logger.database.info('Getting valid access token', { 
+      athleteId: member.athleteId,
+      discordUserId: member.discordUserId,
+      hasTokens: !!member.tokens
+    });
+
+    // First, try to decrypt tokens from database
+    if (member.tokens && member.tokens.encrypted) {
+      logger.database.info('Found encrypted tokens in database', {
+        athleteId: member.athleteId,
+        tokenStructure: {
+          hasEncrypted: !!member.tokens.encrypted,
+          hasIv: !!member.tokens.iv,
+          hasAuthTag: !!member.tokens.authTag
+        }
+      });
+
+      try {
+        const config = require('../../config/config');
+        const crypto = require('crypto');
+        
+        if (!config.security.encryptionKey) {
+          logger.database.warn('No encryption key available for token decryption');
+          return null;
+        }
+        
+        logger.database.info('Attempting token decryption from database', { athleteId: member.athleteId });
+        
+        // Decrypt using the same method as DatabaseManager
+        const algorithm = 'aes-256-gcm';
+        const key = Buffer.from(config.security.encryptionKey, 'hex');
+        const iv = Buffer.from(member.tokens.iv, 'hex');
+        const authTag = Buffer.from(member.tokens.authTag, 'hex');
+        
+        const decipher = crypto.createDecipheriv(algorithm, key, iv);
+        decipher.setAuthTag(authTag);
+        
+        let decrypted = decipher.update(member.tokens.encrypted, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        
+        const decryptedTokens = JSON.parse(decrypted);
+        
+        logger.database.info('Successfully decrypted tokens from database', { 
+          athleteId: member.athleteId,
+          hasAccessToken: !!decryptedTokens.access_token,
+          expiresAt: decryptedTokens.expires_at
+        });
+        
+        // Check if token is expired
+        if (decryptedTokens.expires_at && decryptedTokens.expires_at < Date.now() / 1000) {
+          const expiredDate = new Date(decryptedTokens.expires_at * 1000).toISOString();
+          logger.database.info('Token expired for member', { 
+            athleteId: member.athleteId,
+            expiredAt: expiredDate,
+            expiredSecondsAgo: Math.floor((Date.now() / 1000) - decryptedTokens.expires_at)
+          });
+          return null;
+        }
+        
+        logger.database.info('Returning access token from database', { athleteId: member.athleteId });
+        return decryptedTokens.access_token;
+        
+      } catch (error) {
+        logger.database.error('Could not decrypt tokens from database', { 
+          athleteId: member.athleteId,
+          error: error.message,
+          errorStack: error.stack
+        });
+        // Fall through to JSON fallback
+      }
+    } else {
+      logger.database.info('No encrypted tokens found in database, trying JSON fallback', { 
+        athleteId: member.athleteId,
+        memberTokens: member.tokens
+      });
+    }
     
-    if (!tokens || !tokens.access_token) {
+    // FALLBACK: Try to get tokens from legacy JSON file if database doesn't have them
+    logger.database.info('Entering JSON fallback section', { athleteId: member.athleteId });
+    logger.member.debug('Attempting JSON fallback for token decryption', { athleteId: member.athleteId });
+    
+    try {
+      const fs = require('fs').promises;
+      const path = require('path');
+      const config = require('../../config/config');
+      const crypto = require('crypto');
+      
+      const jsonPath = path.join(__dirname, '../../data/data/members.json');
+      const jsonData = await fs.readFile(jsonPath, 'utf8');
+      const memberData = JSON.parse(jsonData);
+      
+      // Find member in JSON by discordUserId
+      const jsonMember = memberData.members.find(m => m.discordUserId === member.discordUserId);
+      if (!jsonMember || !jsonMember.tokens) {
+        logger.member.debug('Member not found in JSON or no tokens', { 
+          athleteId: member.athleteId,
+          foundInJson: !!jsonMember,
+          hasTokensInJson: !!(jsonMember && jsonMember.tokens)
+        });
+        return null;
+      }
+      
+      logger.member.debug('Found member in JSON with tokens', {
+        athleteId: member.athleteId,
+        tokenStructure: {
+          hasEncrypted: !!jsonMember.tokens.encrypted,
+          hasIv: !!jsonMember.tokens.iv,
+          hasAuthTag: !!jsonMember.tokens.authTag
+        }
+      });
+      
+      // Decrypt tokens from JSON format
+      const encryptedTokens = jsonMember.tokens;
+      if (!encryptedTokens.encrypted || !config.security.encryptionKey) {
+        logger.member.debug('Missing encrypted data or encryption key for JSON fallback');
+        return null;
+      }
+      
+      // Decrypt using the same method as DatabaseManager
+      const algorithm = 'aes-256-gcm';
+      const key = Buffer.from(config.security.encryptionKey, 'hex');
+      const iv = Buffer.from(encryptedTokens.iv, 'hex');
+      const authTag = Buffer.from(encryptedTokens.authTag, 'hex');
+      
+      const decipher = crypto.createDecipheriv(algorithm, key, iv);
+      decipher.setAuthTag(authTag);
+      
+      let decrypted = decipher.update(encryptedTokens.encrypted, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      
+      const decryptedTokens = JSON.parse(decrypted);
+      
+      logger.member.debug('Successfully decrypted tokens from JSON fallback', { 
+        athleteId: member.athleteId,
+        hasAccessToken: !!decryptedTokens.access_token,
+        expiresAt: decryptedTokens.expires_at
+      });
+      
+      // Check if token is expired
+      if (decryptedTokens.expires_at && decryptedTokens.expires_at < Date.now() / 1000) {
+        logger.member.debug('Token expired for member', { athleteId: member.athleteId });
+        return null;
+      }
+      
+      return decryptedTokens.access_token;
+      
+    } catch (error) {
+      logger.member.debug('Could not decrypt tokens from JSON fallback', { 
+        athleteId: member.athleteId,
+        error: error.message 
+      });
       return null;
     }
-
-    // Check if token is expired
-    if (tokens.expires_at && tokens.expires_at < Date.now() / 1000) {
-      // Token expired, would need to refresh
-      logger.member.debug('Token expired for member', { athleteId: member.athleteId });
-      return null;
-    }
-
-    return tokens.access_token;
   }
 
   // === Statistics & Health ===

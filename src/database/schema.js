@@ -1,18 +1,32 @@
 const { sqliteTable, text, integer, blob, index } = require('drizzle-orm/sqlite-core');
 const { sql } = require('drizzle-orm');
 
-// Members table - simplified structure without encryption
+// Members table - complete structure with Discord user data and encrypted tokens
 const members = sqliteTable('members', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   athlete_id: integer('athlete_id').unique().notNull(),
   discord_id: text('discord_id').unique().notNull(),
+  discord_user_id: text('discord_user_id'), // Consistent naming with codebase
   is_active: integer('is_active').default(1),
   athlete: text('athlete'), // JSON string of athlete data
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+  registered_at: text('registered_at').default(sql`CURRENT_TIMESTAMP`),
+  
+  // Discord user information (essential for proper name display)
+  discord_username: text('discord_username'),
+  discord_display_name: text('discord_display_name'),
+  discord_discriminator: text('discord_discriminator').default('0'),
+  discord_avatar: text('discord_avatar'),
+  
+  // Encrypted token storage (stored as complete encrypted JSON object)
+  encrypted_tokens: text('encrypted_tokens'), // JSON string containing the full encrypted token structure
 }, (table) => ({
   discordIdIdx: index('member_discord_idx').on(table.discord_id),
   athleteIdIdx: index('member_athlete_idx').on(table.athlete_id),
+  discordUsernameIdx: index('member_discord_username_idx').on(table.discord_username),
+  discordDisplayNameIdx: index('member_discord_display_name_idx').on(table.discord_display_name),
+  registeredAtIdx: index('member_registered_at_idx').on(table.registered_at),
 }));
 
 // Races table - enhanced with road/trail types

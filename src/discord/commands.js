@@ -424,6 +424,23 @@ class DiscordCommands {
     try {
       const members = await this.activityProcessor.memberManager.getAllMembers();
       const memberStats = await this.activityProcessor.memberManager.getStats();
+      
+      // Load Discord user data from JSON fallback for missing guild cache
+      let jsonMemberData = {};
+      try {
+        const fs = require('fs').promises;
+        const path = require('path');
+        const jsonPath = path.join(__dirname, '../../data/data/members.json');
+        const jsonData = await fs.readFile(jsonPath, 'utf8');
+        const memberDataJson = JSON.parse(jsonData);
+        
+        // Create lookup by discordUserId
+        memberDataJson.members.forEach(jsonMember => {
+          jsonMemberData[jsonMember.discordUserId] = jsonMember.discordUser;
+        });
+      } catch (error) {
+        logger.discord.debug('Could not load JSON member data for fallback', { error: error.message });
+      }
 
       if (members.length === 0) {
         await interaction.editReply({
@@ -445,11 +462,29 @@ class DiscordCommands {
       memberChunks[0].forEach((member, _index) => {
         const user = interaction.guild?.members.cache.get(member.discordUserId);
         const displayName = user ? `<@${member.discordUserId}>` : `User ID: ${member.discordUserId}`;
-        const memberName = member.discordUser ? member.discordUser.displayName : `${member.athlete.firstname} ${member.athlete.lastname}`;
+        
+        // Get Discord name with multiple fallbacks
+        let discordName;
+        if (user && user.displayName) {
+          // First: Try guild member cache
+          discordName = user.displayName;
+        } else if (jsonMemberData[member.discordUserId]) {
+          // Second: Try JSON fallback data
+          discordName = jsonMemberData[member.discordUserId].displayName || jsonMemberData[member.discordUserId].username;
+        } else if (member.discordUser) {
+          // Third: Try stored database data (usually null)
+          discordName = member.discordUser.displayName;
+        } else {
+          // Last: Use truncated user ID
+          discordName = `User ${member.discordUserId.slice(-4)}`;
+        }
+        
+        // Show Strava name in the details (field value)
+        const stravaName = member.athlete ? `${member.athlete.firstname} ${member.athlete.lastname}` : 'Unknown';
         
         embed.addFields([{
-          name: memberName,
-          value: `Discord: ${displayName}\nRegistered: ${new Date(member.registeredAt).toLocaleDateString()}\nStatus: ${member.isActive ? '🟢 Active' : '🔴 Inactive'}`,
+          name: `👤 ${discordName}`,
+          value: `Strava: ${stravaName}\nDiscord: ${displayName}\nRegistered: ${new Date(member.registeredAt).toLocaleDateString()}\nStatus: ${member.isActive ? '🟢 Active' : '🔴 Inactive'}`,
           inline: true
         }]);
       });
@@ -754,7 +789,16 @@ class DiscordCommands {
 
     try {
       const memberInput = options.getString('member');
+      logger.discord.info('Processing /last command', {
+        user: interaction.user.tag,
+        memberInput: memberInput
+      });
       const member = await this.findMemberByInput(memberInput);
+      logger.discord.info('Member lookup result', {
+        memberInput: memberInput,
+        memberFound: !!member,
+        memberId: member?.discordUserId
+      });
 
       if (!member) {
         await interaction.editReply({
@@ -763,12 +807,51 @@ class DiscordCommands {
         return;
       }
 
+      // Load JSON member data for Discord name fallback
+      let jsonMemberData = {};
+      try {
+        const fs = require('fs').promises;
+        const path = require('path');
+        const jsonPath = path.join(__dirname, '../../data/data/members.json');
+        const jsonData = await fs.readFile(jsonPath, 'utf8');
+        const memberDataJson = JSON.parse(jsonData);
+        
+        // Create lookup by discordUserId
+        memberDataJson.members.forEach(jsonMember => {
+          jsonMemberData[jsonMember.discordUserId] = jsonMember.discordUser;
+        });
+      } catch (error) {
+        logger.discord.debug('Could not load JSON member data for fallback', { error: error.message });
+      }
+
+      // Helper function to get Discord name with fallbacks
+      const getDiscordName = (member) => {
+        const user = interaction.guild?.members.cache.get(member.discordUserId);
+        if (user && user.displayName) {
+          return user.displayName;
+        } else if (jsonMemberData[member.discordUserId]) {
+          return jsonMemberData[member.discordUserId].displayName || jsonMemberData[member.discordUserId].username;
+        } else if (member.discordUser) {
+          return member.discordUser.displayName;
+        } else if (member.athlete) {
+          return `${member.athlete.firstname} ${member.athlete.lastname}`;
+        } else {
+          return `User ${member.discordUserId.slice(-4)}`;
+        }
+      };
+
       // Get valid access token for the member
       const accessToken = await this.activityProcessor.memberManager.getValidAccessToken(member);
+      logger.discord.info('Access token check result', {
+        memberInput: memberInput,
+        hasAccessToken: !!accessToken
+      });
+      
       if (!accessToken) {
-        const memberName = member.discordUser ? member.discordUser.displayName : `${member.athlete.firstname} ${member.athlete.lastname}`;
+        const memberName = getDiscordName(member);
         await interaction.editReply({
-          content: `❌ Unable to access activities for **${memberName}**. They may need to re-authorize.`,
+          content: `❌ **${memberName}** needs to re-authorize with Strava to view their activities.\n` +
+                   `Please use the \`/register\` command to reconnect your Strava account.`,
         });
         return;
       }
@@ -781,7 +864,7 @@ class DiscordCommands {
       );
 
       if (!activities || activities.length === 0) {
-        const memberName = member.discordUser ? member.discordUser.displayName : `${member.athlete.firstname} ${member.athlete.lastname}`;
+        const memberName = getDiscordName(member);
         await interaction.editReply({
           content: `📭 No recent activities found for **${memberName}**.`,
         });
@@ -805,7 +888,7 @@ class DiscordCommands {
       }
 
       if (!publicActivity) {
-        const memberName = member.discordUser ? member.discordUser.displayName : `${member.athlete.firstname} ${member.athlete.lastname}`;
+        const memberName = getDiscordName(member);
         await interaction.editReply({
           content: `🔒 **${memberName}** has no recent public activities to display.`,
         });
@@ -828,7 +911,8 @@ class DiscordCommands {
       logger.discord.error('Error fetching last activity', {
         user: interaction.user.tag,
         memberInput: options.getString('member'),
-        error: error.message
+        error: error.message,
+        stack: error.stack
       });
       await interaction.editReply({
         content: '❌ Failed to fetch the last activity. Please try again later.',
@@ -852,9 +936,9 @@ class DiscordCommands {
     
     return members.find(member => {
       const discordName = member.discordUser ? member.discordUser.displayName.toLowerCase() : '';
-      const firstName = member.athlete.firstname.toLowerCase();
-      const lastName = member.athlete.lastname.toLowerCase();
-      const fullName = `${firstName} ${lastName}`;
+      const firstName = member.athlete ? member.athlete.firstname.toLowerCase() : '';
+      const lastName = member.athlete ? member.athlete.lastname.toLowerCase() : '';
+      const fullName = `${firstName} ${lastName}`.trim();
       
       return discordName.includes(searchTerm) || 
              discordName === searchTerm ||

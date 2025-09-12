@@ -150,14 +150,25 @@ class DatabaseManager {
       throw new Error('Missing required member data');
     }
 
-    // Insert into database using the simplified schema
+    // Insert into database with complete member data including Discord info and tokens
     await this.db.insert(members).values({
       athlete_id: parseInt(member.athlete.id),
       discord_id: member.discordUserId,
+      discord_user_id: member.discordUserId, // New field for consistency
       athlete: JSON.stringify(member.athlete), // Store as JSON string
       is_active: member.isActive ? 1 : 0,
       created_at: member.registeredAt || new Date().toISOString(),
       updated_at: member.lastTokenRefresh || new Date().toISOString(),
+      registered_at: member.registeredAt || new Date().toISOString(),
+      
+      // Discord user information
+      discord_username: member.discordUser?.username || null,
+      discord_display_name: member.discordUser?.displayName || null,
+      discord_discriminator: member.discordUser?.discriminator || '0',
+      discord_avatar: member.discordUser?.avatar || null,
+      
+      // Encrypted token data (store complete encrypted structure as JSON)
+      encrypted_tokens: member.tokens ? JSON.stringify(member.tokens) : null,
     });
   }
 
@@ -609,20 +620,27 @@ class DatabaseManager {
   }
 
   decryptMember(member) {
-    // Handle the simplified database schema (no encryption)
+    // Handle the complete database schema with Discord user data and encrypted tokens
     if (!member) return null;
     
     return {
-      discordUserId: member.discord_id,
+      discordUserId: member.discord_user_id || member.discord_id, // Support both field names for compatibility
       athlete: member.athlete ? JSON.parse(member.athlete) : null,
       athleteId: member.athlete_id,
       isActive: Boolean(member.is_active),
-      registeredAt: member.created_at,
+      registeredAt: member.registered_at || member.created_at,
       lastTokenRefresh: member.updated_at,
-      // Since we don't have token storage in the simplified schema, 
-      // these will need to be handled through re-authentication
-      tokens: null,
-      discordUser: null
+      
+      // Discord user information (now available from database)
+      discordUser: {
+        username: member.discord_username,
+        displayName: member.discord_display_name,
+        discriminator: member.discord_discriminator || '0',
+        avatar: member.discord_avatar
+      },
+      
+      // Encrypted token data (preserved from original JSON format)
+      tokens: member.encrypted_tokens ? JSON.parse(member.encrypted_tokens) : null
     };
   }
 

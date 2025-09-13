@@ -12,7 +12,8 @@
     "lint:fix": "eslint src/ --fix",
     "db:generate": "drizzle-kit generate:sqlite",
     "db:migrate": "node src/database/migrate.js",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "sonar:report": "node -r dotenv/config scripts/sonar-api.js report"
   },
   "keywords": [
     "discord",

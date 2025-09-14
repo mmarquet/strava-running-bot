@@ -1,3 +1,27 @@
+// Mock config to prevent environment variable requirements
+jest.mock('../../config/config', () => ({
+  database: {
+    file: ':memory:'
+  },
+  strava: {
+    clientId: 'test-client-id',
+    clientSecret: 'test-client-secret'
+  },
+  discord: {
+    token: 'test-token',
+    channelId: 'test-channel'
+  },
+  webhook: {
+    verifyToken: 'test-verify-token'
+  },
+  encryption: {
+    key: 'test-encryption-key'
+  },
+  server: {
+    port: 3000
+  }
+}));
+
 const migrate = require('../../src/database/migrate');
 const databaseManager = require('../../src/database/DatabaseManager');
 

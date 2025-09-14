@@ -287,7 +287,7 @@ describe('RaceManager', () => {
 
     it('should calculate days until race correctly', () => {
       const days = raceManager.getDaysUntilRace('2025-04-21');
-      expect(days).toBe(21); // From April 1 to April 21 accounting for timezone differences
+      expect(days).toBe(21); // From April 1 to April 21 - calculation includes the target day
     });
   });
 

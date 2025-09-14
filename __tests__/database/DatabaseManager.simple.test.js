@@ -39,6 +39,30 @@ jest.mock('../../src/database/connection', () => ({
 
 jest.mock('../../src/managers/SettingsManager');
 
+// Mock config to prevent environment variable requirements
+jest.mock('../../config/config', () => ({
+  database: {
+    file: ':memory:'
+  },
+  strava: {
+    clientId: 'test-client-id',
+    clientSecret: 'test-client-secret'
+  },
+  discord: {
+    token: 'test-token',
+    channelId: 'test-channel'
+  },
+  webhook: {
+    verifyToken: 'test-verify-token'
+  },
+  encryption: {
+    key: 'test-encryption-key'
+  },
+  server: {
+    port: 3000
+  }
+}));
+
 const config = require('../../config/config');
 const logger = require('../../src/utils/Logger');
 const dbConnection = require('../../src/database/connection');

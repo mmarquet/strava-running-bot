@@ -1,6 +1,6 @@
 const Database = require('better-sqlite3');
 const { drizzle } = require('drizzle-orm/better-sqlite3');
-const Logger = require('../utils/Logger');
+const logger = require('../utils/Logger');
 const config = require('../../config/config');
 const path = require('path');
 const fs = require('fs');
@@ -15,7 +15,7 @@ class DatabaseConnection {
   async initialize() {
     try {
       const dbPath = config.database.path || path.join(process.cwd(), 'data', 'data.db');
-      Logger.info(`Connecting to database at: ${dbPath}`);
+      logger.info(`Connecting to database at: ${dbPath}`);
       
       this.db = new Database(dbPath);
       this.db.exec('PRAGMA journal_mode = WAL;');
@@ -26,11 +26,11 @@ class DatabaseConnection {
       
       this.drizzle = drizzle(this.db);
       this.isInitialized = true;
-      Logger.info('Database connection established successfully');
+      logger.info('Database connection established successfully');
       
       return this.drizzle;
     } catch (error) {
-      Logger.error('Failed to initialize database:', error);
+      logger.error('Failed to initialize database:', error);
       throw error;
     }
   }
@@ -53,7 +53,7 @@ class DatabaseConnection {
     if (this.db) {
       this.db.close();
       this.isInitialized = false;
-      Logger.info('Database connection closed');
+      logger.info('Database connection closed');
     }
   }
 
@@ -63,7 +63,7 @@ class DatabaseConnection {
       
       // Check if migrations directory exists
       if (!fs.existsSync(migrationsDir)) {
-        Logger.info('No migrations directory found, skipping migrations');
+        logger.info('No migrations directory found, skipping migrations');
         return;
       }
 
@@ -93,11 +93,11 @@ class DatabaseConnection {
         ).get(migrationName);
 
         if (existingMigration?.success) {
-          Logger.info(`Migration ${migrationName} already executed, skipping`);
+          logger.info(`Migration ${migrationName} already executed, skipping`);
           continue;
         }
 
-        Logger.info(`Running migration: ${migrationName}`);
+        logger.info(`Running migration: ${migrationName}`);
         
         try {
           const migrationSql = fs.readFileSync(
@@ -114,7 +114,7 @@ class DatabaseConnection {
             VALUES (?, 1)
           `).run(migrationName);
           
-          Logger.info(`Migration ${migrationName} completed successfully`);
+          logger.info(`Migration ${migrationName} completed successfully`);
           
         } catch (error) {
           // Log failed migration
@@ -123,15 +123,15 @@ class DatabaseConnection {
             VALUES (?, 0, ?)
           `).run(migrationName, error.message);
           
-          Logger.error(`Migration ${migrationName} failed:`, error);
+          logger.error(`Migration ${migrationName} failed:`, error);
           throw error;
         }
       }
       
-      Logger.info('All migrations completed successfully');
+      logger.info('All migrations completed successfully');
       
     } catch (error) {
-      Logger.error('Migration failed:', error);
+      logger.error('Migration failed:', error);
       throw error;
     }
   }

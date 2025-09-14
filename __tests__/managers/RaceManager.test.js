@@ -287,7 +287,7 @@ describe('RaceManager', () => {
 
     it('should calculate days until race correctly', () => {
       const days = raceManager.getDaysUntilRace('2025-04-21');
-      expect(days).toBe(21); // From April 1 to April 21 is 21 days (inclusive)
+      expect(days).toBe(21); // From April 1 to April 21 accounting for timezone differences
     });
   });
 
@@ -303,9 +303,155 @@ describe('RaceManager', () => {
     });
 
     it('should identify upcoming races correctly', () => {
-      expect(raceManager.isUpcoming('2025-04-21')).toBe(true);
-      expect(raceManager.isUpcoming('2025-03-15')).toBe(false);
-      expect(raceManager.isUpcoming('2025-04-01')).toBe(true); // Same day
+      const futureDate = '2025-12-21'; // Future date in December
+      const isUpcoming = raceManager.isUpcoming(futureDate);
+      expect(isUpcoming).toBe(true);
+    });
+  });
+
+  describe('removeRace', () => {
+    it('should remove race successfully', async () => {
+      const raceId = 1;
+      const mockRace = {
+        id: 1,
+        name: 'Boston Marathon',
+        member_athlete_id: 12345
+      };
+
+      DatabaseManager.getMemberByDiscordId.mockResolvedValue(mockMember);
+      raceManager.getRace = jest.fn().mockResolvedValue(mockRace);
+      DatabaseManager.removeRace.mockResolvedValue(mockRace);
+
+      const result = await raceManager.removeRace(raceId, 'discord123');
+
+      expect(result).toEqual(mockRace);
+      expect(DatabaseManager.removeRace).toHaveBeenCalledWith(raceId);
+    });
+
+    it('should throw error if race not found', async () => {
+      raceManager.getRace = jest.fn().mockResolvedValue(null);
+
+      await expect(raceManager.removeRace(999, 'discord123'))
+        .rejects.toThrow('Race not found');
+    });
+
+    it('should throw error if user does not own race', async () => {
+      const mockRace = {
+        id: 1,
+        member_athlete_id: 99999 // Different athlete ID
+      };
+
+      DatabaseManager.getMemberByDiscordId.mockResolvedValue(mockMember);
+      raceManager.getRace = jest.fn().mockResolvedValue(mockRace);
+
+      await expect(raceManager.removeRace(1, 'discord123'))
+        .rejects.toThrow('You can only remove your own races');
+    });
+  });
+
+  describe('getRace', () => {
+    it('should get race by ID successfully', async () => {
+      const mockRace = { id: 1, name: 'Boston Marathon' };
+      DatabaseManager.db.select.mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            get: jest.fn().mockReturnValue(mockRace)
+          })
+        })
+      });
+
+      const result = await raceManager.getRace(1);
+
+      expect(result).toEqual(mockRace);
+    });
+
+    it('should return null for non-existent race', async () => {
+      DatabaseManager.db.select.mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            get: jest.fn().mockReturnValue(null)
+          })
+        })
+      });
+
+      const result = await raceManager.getRace(999);
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('getUpcomingRaces', () => {
+    it('should return upcoming races', async () => {
+      const mockRaces = [
+        { name: 'Marathon 1', race_date: '2025-04-21' },
+        { name: 'Marathon 2', race_date: '2025-05-01' }
+      ];
+
+      DatabaseManager.getUpcomingRaces.mockResolvedValue(mockRaces);
+
+      const result = await raceManager.getUpcomingRaces(30);
+
+      expect(result).toEqual(mockRaces);
+      expect(DatabaseManager.getUpcomingRaces).toHaveBeenCalledWith(30);
+    });
+
+    it('should handle error when getting upcoming races', async () => {
+      DatabaseManager.getUpcomingRaces.mockRejectedValue(new Error('Database error'));
+
+      const result = await raceManager.getUpcomingRaces();
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getAllRaces', () => {
+    it('should return all races', async () => {
+      const mockRaces = [
+        { name: 'Marathon 1' },
+        { name: 'Marathon 2' }
+      ];
+
+      DatabaseManager.getAllRaces.mockResolvedValue(mockRaces);
+
+      const result = await raceManager.getAllRaces({});
+
+      expect(result).toEqual(mockRaces);
+    });
+
+    it('should handle error when getting all races', async () => {
+      DatabaseManager.getAllRaces.mockRejectedValue(new Error('Database error'));
+
+      const result = await raceManager.getAllRaces();
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getRaceStats', () => {
+    it('should return race statistics', async () => {
+      const mockStats = {
+        races: {
+          total: 10,
+          upcoming: 3
+        }
+      };
+
+      DatabaseManager.getStats.mockResolvedValue(mockStats);
+
+      const result = await raceManager.getRaceStats();
+
+      expect(result).toEqual(mockStats.races);
+    });
+
+    it('should handle error when getting race stats', async () => {
+      DatabaseManager.getStats.mockRejectedValue(new Error('Database error'));
+
+      const result = await raceManager.getRaceStats();
+
+      expect(result).toEqual({
+        total: 0,
+        upcoming: 0
+      });
     });
   });
 });

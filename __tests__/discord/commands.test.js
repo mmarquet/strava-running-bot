@@ -54,6 +54,16 @@ jest.mock('discord.js', () => {
             optionCallback(option);
             subcommand.options.push(option);
             return subcommand;
+          }),
+          addChannelOption: jest.fn().mockImplementation((optionCallback) => {
+            const option = {
+              setName: jest.fn().mockReturnThis(),
+              setDescription: jest.fn().mockReturnThis(),
+              setRequired: jest.fn().mockReturnThis()
+            };
+            optionCallback(option);
+            subcommand.options.push(option);
+            return subcommand;
           })
         };
         callback(subcommand);
@@ -248,7 +258,7 @@ describe('DiscordCommands', () => {
     it('should return array of slash commands', () => {
       const commands = discordCommands.getCommands();
 
-      expect(commands).toHaveLength(7); // members, register, botstatus, last, race, teamraces, scheduler
+      expect(commands).toHaveLength(8); // members, register, botstatus, last, race, teamraces, settings, scheduler
       expect(commands.every(cmd => cmd instanceof SlashCommandBuilder)).toBe(true);
     });
 
@@ -712,7 +722,8 @@ describe('DiscordCommands', () => {
       await discordCommands.handleLastActivityCommand(mockInteraction, mockInteraction.options);
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: '❌ Unable to access activities for **Test User**. They may need to re-authorize.'
+        content: '❌ **Test User** needs to re-authorize with Strava to view their activities.\n' +
+                 'Please use the `/register` command to reconnect your Strava account.'
       });
     });
 

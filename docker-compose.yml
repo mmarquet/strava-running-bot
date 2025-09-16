@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   strava-running-bot:
     # Use prebuilt image if DOCKER_IMAGE is set, otherwise use build
@@ -7,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: strava-running-bot
-    restart: unless-stopped
+    
 
     # Environment variables (override with .env file)
     environment:

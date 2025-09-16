@@ -30,18 +30,34 @@ const config = {
   app: {
     name: 'Strava Running Bot',
     version: '1.0.0',
+  },
+  database: {
+    path: process.env.DATABASE_PATH || '/app/data/bot.db',
+  },
+  scheduler: {
+    // Enable/disable scheduled race announcements
+    weeklyEnabled: process.env.WEEKLY_RACE_ANNOUNCEMENTS !== 'false', // Default: enabled
+    monthlyEnabled: process.env.MONTHLY_RACE_ANNOUNCEMENTS !== 'false', // Default: enabled
+    
+    // Cron schedule patterns
+    weeklySchedule: process.env.WEEKLY_SCHEDULE || '0 8 * * 1', // Every Monday at 8:00 AM
+    monthlySchedule: process.env.MONTHLY_SCHEDULE || '0 8 1 * *', // First day of month at 8:00 AM
+    
+    // Timezone for scheduling (important for proper timing)
+    timezone: process.env.SCHEDULER_TIMEZONE || 'UTC',
   }
 };
 
 // Validate required environment variables
 const requiredEnvVars = [
   'DISCORD_TOKEN',
-  'DISCORD_CHANNEL_ID',
   'STRAVA_CLIENT_ID',
   'STRAVA_CLIENT_SECRET',
   'STRAVA_WEBHOOK_VERIFY_TOKEN',
   'ENCRYPTION_KEY'
 ];
+
+// Note: DISCORD_CHANNEL_ID is now optional as it can be set via /settings command
 
 // BASE_URL is not strictly required since it has a localhost fallback,
 // but we'll warn if it's not set in production

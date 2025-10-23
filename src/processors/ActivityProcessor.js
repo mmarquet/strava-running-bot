@@ -1,32 +1,67 @@
 const StravaAPI = require('../strava/api');
 const DiscordBot = require('../discord/bot');
-const MemberManager = require('../managers/MemberManager');
+const DatabaseMemberManager = require('../database/DatabaseMemberManager');
 const ActivityQueue = require('../managers/ActivityQueue');
+const Scheduler = require('../managers/Scheduler');
+const RaceManager = require('../managers/RaceManager');
 const config = require('../../config/config');
+const dynamicConfig = require('../../config/dynamicConfig');
 const logger = require('../utils/Logger');
 
 class ActivityProcessor {
   constructor() {
     this.stravaAPI = new StravaAPI();
-    this.memberManager = new MemberManager();
+    this.memberManager = new DatabaseMemberManager();
     this.discordBot = new DiscordBot(this); // Pass this instance to Discord bot
     this.activityQueue = new ActivityQueue(this); // Activity queue for delayed posting
     this.processedActivities = new Set(); // Prevent duplicate processing
+    
+    // Initialize race management and scheduler
+    this.raceManager = new RaceManager();
+    this.scheduler = new Scheduler(this, this.raceManager);
   }
 
   async initialize() {
     logger.activity.info('Initializing Activity Processor...');
     
     try {
+      // Initialize database and member manager
+      logger.activity.info('Initializing member manager...');
+      await this.memberManager.initialize();
+      
+      // Initialize dynamic config with settings manager
+      if (this.memberManager.databaseManager.settingsManager) {
+        dynamicConfig.setSettingsManager(this.memberManager.databaseManager.settingsManager);
+      }
+      
+      logger.activity.info('Member manager initialized');
+      
       // Start Discord bot
+      logger.activity.info('Starting Discord bot...');
       await this.discordBot.start();
+      logger.activity.info('Discord bot started');
+
+      // Start activity queue processor
+      logger.activity.info('Activity queue ready (no startup required)');
+      // Note: ActivityQueue doesn't need to be started, it processes activities on-demand
+
+      // Initialize race scheduler
+      logger.activity.info('Initializing race scheduler...');
+      await this.scheduler.initialize(config);
+      logger.activity.info('Race scheduler initialized');
+
+      logger.activity.info('Getting member count...');
+      const memberCount = await this.memberManager.getMemberCount();
+      logger.activity.info('Activity Processor initialized successfully', {
+        memberCount: memberCount
+      });
       
-      // Load existing members
-      await this.memberManager.loadMembers();
-      
-      logger.activity.info('Activity Processor initialized successfully');
     } catch (error) {
-      logger.activity.error('Failed to initialize Activity Processor', error);
+      logger.activity.error('Failed to initialize Activity Processor', {
+        message: error.message,
+        stack: error.stack,
+        error: error
+      });
       throw error;
     }
   }
@@ -280,12 +315,12 @@ class ActivityProcessor {
   }
 
   // Get activity statistics
-  getStats() {
+  async getStats() {
     const queueStats = this.activityQueue.getStats();
     
     return {
       processedActivities: this.processedActivities.size,
-      registeredMembers: this.memberManager.getMemberCount(),
+      registeredMembers: await this.memberManager.getMemberCount(),
       uptime: process.uptime(),
       memoryUsage: process.memoryUsage(),
       activityQueue: queueStats
@@ -296,7 +331,10 @@ class ActivityProcessor {
     logger.activity.info('Shutting down Activity Processor...');
     
     try {
-      // Shutdown activity queue first to stop any pending timers
+      // Shutdown scheduler first to stop cron jobs
+      await this.scheduler.shutdown();
+      
+      // Shutdown activity queue to stop any pending timers
       this.activityQueue.shutdown();
       
       await this.discordBot.stop();

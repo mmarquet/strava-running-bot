@@ -1,7 +1,7 @@
 const ActivityProcessor = require('../../src/processors/ActivityProcessor');
 const StravaAPI = require('../../src/strava/api');
 const DiscordBot = require('../../src/discord/bot');
-const MemberManager = require('../../src/managers/MemberManager');
+const DatabaseMemberManager = require('../../src/database/DatabaseMemberManager');
 const ActivityQueue = require('../../src/managers/ActivityQueue');
 const config = require('../../config/config');
 const logger = require('../../src/utils/Logger');
@@ -10,7 +10,14 @@ const logger = require('../../src/utils/Logger');
 jest.mock('../../src/strava/api');
 jest.mock('../../src/discord/bot');
 jest.mock('../../src/managers/MemberManager');
+jest.mock('../../src/database/DatabaseMemberManager');
 jest.mock('../../src/managers/ActivityQueue');
+jest.mock('../../src/managers/Scheduler');
+jest.mock('../../src/managers/RaceManager');
+jest.mock('../../config/dynamicConfig', () => ({
+  getDiscordChannelId: jest.fn(),
+  setSettingsManager: jest.fn()
+}));
 jest.mock('../../config/config', () => ({
   posting: {
     delayMinutes: 15
@@ -85,13 +92,19 @@ describe('ActivityProcessor', () => {
     };
 
     mockMemberManager = {
+      initialize: jest.fn(),
       loadMembers: jest.fn(),
       saveMembers: jest.fn(),
       getMemberByAthleteId: jest.fn(),
       getValidAccessToken: jest.fn(),
       refreshMemberToken: jest.fn(),
       getAllMembers: jest.fn(),
-      getMemberCount: jest.fn()
+      getMemberCount: jest.fn(),
+      databaseManager: {
+        settingsManager: {
+          // Add mock settings manager if needed
+        }
+      }
     };
 
     mockActivityQueue = {
@@ -105,7 +118,7 @@ describe('ActivityProcessor', () => {
     // Mock constructors
     StravaAPI.mockImplementation(() => mockStravaAPI);
     DiscordBot.mockImplementation(() => mockDiscordBot);
-    MemberManager.mockImplementation(() => mockMemberManager);
+    DatabaseMemberManager.mockImplementation(() => mockMemberManager);
     ActivityQueue.mockImplementation(() => mockActivityQueue);
 
     activityProcessor = new ActivityProcessor();
@@ -134,14 +147,15 @@ describe('ActivityProcessor', () => {
   describe('initialize', () => {
     it('should initialize all components successfully', async () => {
       mockDiscordBot.start.mockResolvedValue();
-      mockMemberManager.loadMembers.mockResolvedValue();
+      mockMemberManager.getMemberCount.mockReturnValue(10);
 
       await activityProcessor.initialize();
 
       expect(mockDiscordBot.start).toHaveBeenCalled();
-      expect(mockMemberManager.loadMembers).toHaveBeenCalled();
       expect(logger.activity.info).toHaveBeenCalledWith('Initializing Activity Processor...');
-      expect(logger.activity.info).toHaveBeenCalledWith('Activity Processor initialized successfully');
+      expect(logger.activity.info).toHaveBeenCalledWith('Activity Processor initialized successfully', {
+        memberCount: 10
+      });
     });
 
     it('should handle Discord bot start failure', async () => {
@@ -149,16 +163,21 @@ describe('ActivityProcessor', () => {
       mockDiscordBot.start.mockRejectedValue(error);
 
       await expect(activityProcessor.initialize()).rejects.toThrow(error);
-      expect(logger.activity.error).toHaveBeenCalledWith('Failed to initialize Activity Processor', error);
+      expect(logger.activity.error).toHaveBeenCalledWith('Failed to initialize Activity Processor', expect.objectContaining({
+        message: error.message,
+        error: error
+      }));
     });
 
-    it('should handle member loading failure', async () => {
-      mockDiscordBot.start.mockResolvedValue();
-      const error = new Error('Failed to load members');
-      mockMemberManager.loadMembers.mockRejectedValue(error);
+    it('should handle member manager initialization failure', async () => {
+      const error = new Error('Failed to initialize member manager');
+      mockMemberManager.initialize.mockRejectedValue(error);
 
       await expect(activityProcessor.initialize()).rejects.toThrow(error);
-      expect(logger.activity.error).toHaveBeenCalledWith('Failed to initialize Activity Processor', error);
+      expect(logger.activity.error).toHaveBeenCalledWith('Failed to initialize Activity Processor', expect.objectContaining({
+        message: error.message,
+        error: error
+      }));
     });
   });
 
@@ -573,7 +592,7 @@ describe('ActivityProcessor', () => {
   });
 
   describe('getStats', () => {
-    it('should return comprehensive statistics', () => {
+    it('should return comprehensive statistics', async () => {
       const mockQueueStats = {
         totalQueued: 5,
         delayMinutes: 15
@@ -585,7 +604,7 @@ describe('ActivityProcessor', () => {
       activityProcessor.processedActivities.add('test-1');
       activityProcessor.processedActivities.add('test-2');
 
-      const stats = activityProcessor.getStats();
+      const stats = await activityProcessor.getStats();
 
       expect(stats).toEqual({
         processedActivities: 2,

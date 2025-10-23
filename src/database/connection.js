@@ -13,9 +13,32 @@ class DatabaseConnection {
   async initialize() {
     try {
       const dbPath = config.database.path || path.join(process.cwd(), 'data', 'data.db');
-      logger.info(`Connecting to database at: ${dbPath}`);
+      let finalDbPath = dbPath;
       
-      this.db = new Database(dbPath);
+      // Ensure the directory exists before creating the database
+      const dbDir = path.dirname(dbPath);
+      try {
+        if (!fs.existsSync(dbDir)) {
+          fs.mkdirSync(dbDir, { recursive: true });
+          logger.info(`Created database directory: ${dbDir}`);
+        }
+      } catch (error) {
+        // If we can't create the directory (permission denied), use local fallback
+        logger.warn(`Cannot create directory ${dbDir}, using local fallback`, {
+          error: error.message,
+          code: error.code
+        });
+        const fallbackPath = path.join(process.cwd(), 'app', 'data');
+        if (!fs.existsSync(fallbackPath)) {
+          fs.mkdirSync(fallbackPath, { recursive: true });
+        }
+        finalDbPath = path.join(fallbackPath, 'bot.db');
+        logger.info(`Using fallback database path: ${finalDbPath}`);
+      }
+      
+      logger.info(`Connecting to database at: ${finalDbPath}`);
+      
+      this.db = new Database(finalDbPath);
       this.db.exec('PRAGMA journal_mode = WAL;');
       this.db.exec('PRAGMA synchronous = NORMAL;');
       

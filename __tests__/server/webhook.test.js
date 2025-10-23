@@ -785,6 +785,9 @@ describe('WebhookServer', () => {
       // Should resolve successfully without throwing
       await expect(stopPromise).resolves.toBeUndefined();
       
+      // Ensure server is still null after stop
+      expect(webhookServer.server).toBeNull();
+      
       // Should not log server stopped message when no server exists
       expect(logger.server.info).not.toHaveBeenCalledWith('Webhook server stopped');
     });

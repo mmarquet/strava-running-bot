@@ -88,9 +88,9 @@ class StravaRunningBot {
   }
 
   // Get bot status and statistics
-  getStatus() {
-    const stats = this.activityProcessor.getStats();
-    const memberStats = this.activityProcessor.memberManager.getStats();
+  async getStatus() {
+    const stats = await this.activityProcessor.getStats();
+    const memberStats = await this.activityProcessor.memberManager.getStats();
     
     return {
       isRunning: this.isRunning,
@@ -113,8 +113,15 @@ const args = process.argv.slice(2);
 
 if (args.includes('--status')) {
   // Just print status and exit
-  console.log(JSON.stringify(bot.getStatus(), null, 2));
-  process.exit(0);
+  (async () => {
+    try {
+      const status = await bot.getStatus();
+      console.log(JSON.stringify(status, null, 2));
+    } catch (error) {
+      console.error('Error getting status:', error.message);
+    }
+    process.exit(0);
+  })();
 } else if (args.includes('--help')) {
   console.log(`
 ${config.app.name} v${config.app.version}

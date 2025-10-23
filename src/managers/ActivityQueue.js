@@ -1,5 +1,6 @@
 const config = require('../../config/config');
 const logger = require('../utils/Logger');
+const { TIME } = require('../constants');
 
 class ActivityQueue {
   constructor(activityProcessor) {
@@ -23,7 +24,7 @@ class ActivityQueue {
       return this.activityProcessor.processNewActivity(activityId, athleteId);
     }
 
-    const delayMs = delayMinutes * 60 * 1000;
+    const delayMs = delayMinutes * TIME.MS_PER_MINUTE;
     const scheduledTime = new Date(Date.now() + delayMs);
 
     const queueItem = {

@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const config = require('../../config/config');
 const StravaAPI = require('../strava/api');
 const logger = require('../utils/Logger');
+const { TIME, ENCRYPTION } = require('../constants');
 
 class MemberManager {
   constructor() {
@@ -261,7 +262,7 @@ class MemberManager {
     const now = Math.floor(Date.now() / 1000);
     
     // Check if token is still valid (expires 1 hour before actual expiry for safety)
-    if (member.tokens.expires_at && member.tokens.expires_at > (now + 3600)) {
+    if (member.tokens.expires_at && member.tokens.expires_at > (now + TIME.SECONDS_PER_HOUR)) {
       return member.tokens.access_token;
     }
 
@@ -512,9 +513,9 @@ class MemberManager {
       return member; // Return unencrypted if no key
     }
 
-    const algorithm = 'aes-256-gcm';
+    const algorithm = ENCRYPTION.ALGORITHM;
     const key = Buffer.from(config.security.encryptionKey, 'hex');
-    const iv = crypto.randomBytes(16);
+    const iv = crypto.randomBytes(ENCRYPTION.IV_LENGTH);
     
     const cipher = crypto.createCipheriv(algorithm, key, iv);
     
@@ -540,7 +541,7 @@ class MemberManager {
       return encryptedMember; // Return as-is if not encrypted
     }
 
-    const algorithm = 'aes-256-gcm';
+    const algorithm = ENCRYPTION.ALGORITHM;
     const key = Buffer.from(config.security.encryptionKey, 'hex');
     const iv = Buffer.from(encryptedMember.tokens.iv, 'hex');
     const authTag = Buffer.from(encryptedMember.tokens.authTag, 'hex');
@@ -625,7 +626,7 @@ class MemberManager {
       inactive: inactiveMembers.length,
       recentRegistrations: members.filter(m => {
         const registeredAt = new Date(m.registeredAt);
-        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const weekAgo = new Date(Date.now() - 7 * TIME.MS_PER_DAY);
         return registeredAt > weekAgo;
       }).length
     };

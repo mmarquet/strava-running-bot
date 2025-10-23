@@ -1,5 +1,6 @@
 const databaseManager = require('../database/DatabaseManager');
 const logger = require('../utils/Logger');
+const { ENCRYPTION } = require('../constants');
 
 /**
  * Database-backed MemberManager - Drop-in replacement for the JSON-based MemberManager
@@ -16,8 +17,6 @@ class DatabaseMemberManager {
     
     await this.databaseManager.initialize();
     this.isInitialized = true;
-    
-    // logger.database.info('DatabaseMemberManager initialized');
   }
 
   // === Member Registration & Management ===
@@ -79,6 +78,158 @@ class DatabaseMemberManager {
     return await this.databaseManager.updateTokens(athleteId, tokenData);
   }
 
+  // Helper: Decrypt tokens using AES-256-GCM
+  _decryptTokenData(encryptedTokens, _athleteId) {
+    const config = require('../../config/config');
+    const crypto = require('node:crypto');
+
+    if (!config.security.encryptionKey) {
+      logger.database.warn('No encryption key available for token decryption');
+      return null;
+    }
+
+    const algorithm = ENCRYPTION.ALGORITHM;
+    const key = Buffer.from(config.security.encryptionKey, 'hex');
+    const iv = Buffer.from(encryptedTokens.iv, 'hex');
+    const authTag = Buffer.from(encryptedTokens.authTag, 'hex');
+
+    const decipher = crypto.createDecipheriv(algorithm, key, iv);
+    decipher.setAuthTag(authTag);
+
+    let decrypted = decipher.update(encryptedTokens.encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+
+    const decryptedTokens = JSON.parse(decrypted);
+
+    // Return full token data (including refresh_token and expires_at)
+    // Expiration check moved to _getTokensFromDatabase to enable auto-refresh
+    return decryptedTokens;
+  }
+
+  // Helper: Try to get tokens from database with auto-refresh
+  async _getTokensFromDatabase(member) {
+    if (!member.tokens?.encrypted) {
+      return null;
+    }
+
+    logger.database.info('Found encrypted tokens in database', {
+      athleteId: member.athleteId
+    });
+
+    try {
+      logger.database.info('Attempting token decryption from database', { athleteId: member.athleteId });
+      const tokenData = this._decryptTokenData(member.tokens, member.athleteId);
+
+      if (!tokenData) {
+        return null;
+      }
+
+      // Check if token is expired
+      const isExpired = tokenData.expires_at && tokenData.expires_at < Date.now() / 1000;
+
+      if (isExpired) {
+        logger.database.info('Token expired, attempting auto-refresh', {
+          athleteId: member.athleteId,
+          expiresAt: new Date(tokenData.expires_at * 1000).toISOString()
+        });
+
+        // Attempt to refresh the token
+        if (!tokenData.refresh_token) {
+          logger.database.warn('No refresh token available for expired token', {
+            athleteId: member.athleteId
+          });
+          return null;
+        }
+
+        try {
+          // Use StravaAPI to refresh the token
+          const stravaAPI = require('../strava/api');
+          const api = new stravaAPI();
+          const newTokens = await api.refreshAccessToken(tokenData.refresh_token);
+
+          logger.database.info('Token refreshed successfully via Strava API', {
+            athleteId: member.athleteId,
+            newExpiresAt: new Date(newTokens.expires_at * 1000).toISOString()
+          });
+
+          // Update database with new tokens
+          await this.updateTokens(member.athleteId, newTokens);
+
+          logger.database.info('Successfully updated database with refreshed tokens', {
+            athleteId: member.athleteId
+          });
+
+          return newTokens.access_token;
+        } catch (error) {
+          logger.database.error('Token refresh failed', {
+            athleteId: member.athleteId,
+            error: error.message,
+            stack: error.stack
+          });
+
+          // If refresh fails with 401, token was revoked - user needs to re-auth
+          if (error.response?.status === 401) {
+            logger.database.warn('Token was revoked - user needs to re-authenticate', {
+              athleteId: member.athleteId
+            });
+          }
+
+          return null;
+        }
+      }
+
+      // Token is still valid
+      logger.database.info('Successfully retrieved valid access token from database', {
+        athleteId: member.athleteId,
+        expiresAt: new Date(tokenData.expires_at * 1000).toISOString()
+      });
+
+      return tokenData.access_token;
+    } catch (error) {
+      logger.database.error('Could not decrypt tokens from database', {
+        athleteId: member.athleteId,
+        error: error.message
+      });
+      return null;
+    }
+  }
+
+  // Helper: Try to get tokens from JSON fallback
+  async _getTokensFromJsonFallback(member) {
+    logger.database.info('Trying JSON fallback for tokens', { athleteId: member.athleteId });
+    
+    try {
+      const fs = require('node:fs').promises;
+      const path = require('node:path');
+      
+      const jsonPath = path.join(__dirname, '../../data/members.json');
+      const jsonData = await fs.readFile(jsonPath, 'utf8');
+      const memberData = JSON.parse(jsonData);
+      
+      const jsonMember = memberData.members.find(m => m.discordUserId === member.discordUserId);
+      if (!jsonMember?.tokens) {
+        logger.member.debug('Member not found in JSON or no tokens', { athleteId: member.athleteId });
+        return null;
+      }
+      
+      logger.member.debug('Found member in JSON with tokens', { athleteId: member.athleteId });
+      
+      const accessToken = this._decryptTokenData(jsonMember.tokens, member.athleteId);
+      
+      if (accessToken) {
+        logger.member.debug('Successfully retrieved access token from JSON fallback', { athleteId: member.athleteId });
+      }
+      
+      return accessToken;
+    } catch (error) {
+      logger.member.debug('Could not decrypt tokens from JSON fallback', { 
+        athleteId: member.athleteId,
+        error: error.message 
+      });
+      return null;
+    }
+  }
+
   async getValidAccessToken(member) {
     logger.database.info('Getting valid access token', { 
       athleteId: member.athleteId,
@@ -87,152 +238,16 @@ class DatabaseMemberManager {
     });
 
     // First, try to decrypt tokens from database
-    if (member.tokens && member.tokens.encrypted) {
-      logger.database.info('Found encrypted tokens in database', {
-        athleteId: member.athleteId,
-        tokenStructure: {
-          hasEncrypted: !!member.tokens.encrypted,
-          hasIv: !!member.tokens.iv,
-          hasAuthTag: !!member.tokens.authTag
-        }
-      });
+    const dbToken = await this._getTokensFromDatabase(member);
+    if (dbToken) {
+      return dbToken;
+    }
 
-      try {
-        const config = require('../../config/config');
-        const crypto = require('node:crypto');
-        
-        if (!config.security.encryptionKey) {
-          logger.database.warn('No encryption key available for token decryption');
-          return null;
-        }
-        
-        logger.database.info('Attempting token decryption from database', { athleteId: member.athleteId });
-        
-        // Decrypt using the same method as DatabaseManager
-        const algorithm = 'aes-256-gcm';
-        const key = Buffer.from(config.security.encryptionKey, 'hex');
-        const iv = Buffer.from(member.tokens.iv, 'hex');
-        const authTag = Buffer.from(member.tokens.authTag, 'hex');
-        
-        const decipher = crypto.createDecipheriv(algorithm, key, iv);
-        decipher.setAuthTag(authTag);
-        
-        let decrypted = decipher.update(member.tokens.encrypted, 'hex', 'utf8');
-        decrypted += decipher.final('utf8');
-        
-        const decryptedTokens = JSON.parse(decrypted);
-        
-        logger.database.info('Successfully decrypted tokens from database', { 
-          athleteId: member.athleteId,
-          hasAccessToken: !!decryptedTokens.access_token,
-          expiresAt: decryptedTokens.expires_at
-        });
-        
-        // Check if token is expired
-        if (decryptedTokens.expires_at && decryptedTokens.expires_at < Date.now() / 1000) {
-          const expiredDate = new Date(decryptedTokens.expires_at * 1000).toISOString();
-          logger.database.info('Token expired for member', { 
-            athleteId: member.athleteId,
-            expiredAt: expiredDate,
-            expiredSecondsAgo: Math.floor((Date.now() / 1000) - decryptedTokens.expires_at)
-          });
-          return null;
-        }
-        
-        logger.database.info('Returning access token from database', { athleteId: member.athleteId });
-        return decryptedTokens.access_token;
-        
-      } catch (error) {
-        logger.database.error('Could not decrypt tokens from database', { 
-          athleteId: member.athleteId,
-          error: error.message,
-          errorStack: error.stack
-        });
-        // Fall through to JSON fallback
-      }
-    } else {
-      logger.database.info('No encrypted tokens found in database, trying JSON fallback', { 
-        athleteId: member.athleteId,
-        memberTokens: member.tokens
-      });
-    }
+    // Fallback: Try to get tokens from legacy JSON file
+    logger.database.info('No valid tokens in database, trying JSON fallback', { athleteId: member.athleteId });
+    const jsonToken = await this._getTokensFromJsonFallback(member);
     
-    // FALLBACK: Try to get tokens from legacy JSON file if database doesn't have them
-    logger.database.info('Entering JSON fallback section', { athleteId: member.athleteId });
-    logger.member.debug('Attempting JSON fallback for token decryption', { athleteId: member.athleteId });
-    
-    try {
-      const fs = require('node:fs').promises;
-      const path = require('node:path');
-      const config = require('../../config/config');
-      const crypto = require('node:crypto');
-      
-      const jsonPath = path.join(__dirname, '../../data/data/members.json');
-      const jsonData = await fs.readFile(jsonPath, 'utf8');
-      const memberData = JSON.parse(jsonData);
-      
-      // Find member in JSON by discordUserId
-      const jsonMember = memberData.members.find(m => m.discordUserId === member.discordUserId);
-      if (!jsonMember || !jsonMember.tokens) {
-        logger.member.debug('Member not found in JSON or no tokens', { 
-          athleteId: member.athleteId,
-          foundInJson: !!jsonMember,
-          hasTokensInJson: !!(jsonMember && jsonMember.tokens)
-        });
-        return null;
-      }
-      
-      logger.member.debug('Found member in JSON with tokens', {
-        athleteId: member.athleteId,
-        tokenStructure: {
-          hasEncrypted: !!jsonMember.tokens.encrypted,
-          hasIv: !!jsonMember.tokens.iv,
-          hasAuthTag: !!jsonMember.tokens.authTag
-        }
-      });
-      
-      // Decrypt tokens from JSON format
-      const encryptedTokens = jsonMember.tokens;
-      if (!encryptedTokens.encrypted || !config.security.encryptionKey) {
-        logger.member.debug('Missing encrypted data or encryption key for JSON fallback');
-        return null;
-      }
-      
-      // Decrypt using the same method as DatabaseManager
-      const algorithm = 'aes-256-gcm';
-      const key = Buffer.from(config.security.encryptionKey, 'hex');
-      const iv = Buffer.from(encryptedTokens.iv, 'hex');
-      const authTag = Buffer.from(encryptedTokens.authTag, 'hex');
-      
-      const decipher = crypto.createDecipheriv(algorithm, key, iv);
-      decipher.setAuthTag(authTag);
-      
-      let decrypted = decipher.update(encryptedTokens.encrypted, 'hex', 'utf8');
-      decrypted += decipher.final('utf8');
-      
-      const decryptedTokens = JSON.parse(decrypted);
-      
-      logger.member.debug('Successfully decrypted tokens from JSON fallback', { 
-        athleteId: member.athleteId,
-        hasAccessToken: !!decryptedTokens.access_token,
-        expiresAt: decryptedTokens.expires_at
-      });
-      
-      // Check if token is expired
-      if (decryptedTokens.expires_at && decryptedTokens.expires_at < Date.now() / 1000) {
-        logger.member.debug('Token expired for member', { athleteId: member.athleteId });
-        return null;
-      }
-      
-      return decryptedTokens.access_token;
-      
-    } catch (error) {
-      logger.member.debug('Could not decrypt tokens from JSON fallback', { 
-        athleteId: member.athleteId,
-        error: error.message 
-      });
-      return null;
-    }
+    return jsonToken;
   }
 
   // === Statistics & Health ===

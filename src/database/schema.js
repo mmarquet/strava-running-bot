@@ -1,4 +1,4 @@
-const { sqliteTable, text, integer, blob, index } = require('drizzle-orm/sqlite-core');
+const { sqliteTable, text, integer } = require('drizzle-orm/sqlite-core');
 const { sql } = require('drizzle-orm');
 
 // Members table - complete structure with Discord user data and encrypted tokens
@@ -21,13 +21,16 @@ const members = sqliteTable('members', {
   
   // Encrypted token storage (stored as complete encrypted JSON object)
   encrypted_tokens: text('encrypted_tokens'), // JSON string containing the full encrypted token structure
-}, (table) => ({
-  discordIdIdx: index('member_discord_idx').on(table.discord_id),
-  athleteIdIdx: index('member_athlete_idx').on(table.athlete_id),
-  discordUsernameIdx: index('member_discord_username_idx').on(table.discord_username),
-  discordDisplayNameIdx: index('member_discord_display_name_idx').on(table.discord_display_name),
-  registeredAtIdx: index('member_registered_at_idx').on(table.registered_at),
-}));
+});
+
+// Indexes for members table
+// Note: These index definitions are kept for reference but not actively used in queries yet
+// They can be enabled in future migrations if query performance requires them
+// index('member_discord_idx').on(members.discord_id);
+// index('member_athlete_idx').on(members.athlete_id);
+// index('member_discord_username_idx').on(members.discord_username);
+// index('member_discord_display_name_idx').on(members.discord_display_name);
+// index('member_registered_at_idx').on(members.registered_at);
 
 // Races table - enhanced with road/trail types
 const races = sqliteTable('races', {
@@ -45,13 +48,17 @@ const races = sqliteTable('races', {
   status: text('status').notNull().default('registered'), // registered, completed, cancelled, dns, dnf
   notes: text('notes'),
   goal_time: text('goal_time'), // e.g. "3:30:00"
+  elevation: text('elevation'), // e.g. "5400D+/3600D-"
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
-}, (table) => ({
-  memberIdx: index('race_member_idx').on(table.member_athlete_id),
-  raceDateIdx: index('race_date_idx').on(table.race_date),
-  raceTypeIdx: index('race_type_idx').on(table.race_type),
-}));
+});
+
+// Indexes for races table
+// Note: These index definitions are kept for reference but not actively used in queries yet
+// They can be enabled in future migrations if query performance requires them
+// index('race_member_idx').on(races.member_athlete_id);
+// index('race_date_idx').on(races.race_date);
+// index('race_type_idx').on(races.race_type);
 
 // Migration log table - track migration status
 const migrationLog = sqliteTable('migration_log', {

@@ -1,4 +1,5 @@
 const logger = require('./Logger');
+const { TIME } = require('../constants');
 
 /**
  * Rate limiter for Strava API compliance
@@ -10,11 +11,11 @@ class RateLimiter {
     this.limits = {
       short: {
         requests: 80,    // Conservative: 80/15min (Strava allows ~100)
-        window: 15 * 60 * 1000  // 15 minutes in milliseconds
+        window: 15 * TIME.MS_PER_MINUTE  // 15 minutes in milliseconds
       },
       daily: {
         requests: 900,   // Conservative: 900/day (Strava allows ~1000)
-        window: 24 * 60 * 60 * 1000  // 24 hours in milliseconds
+        window: TIME.MS_PER_DAY  // 24 hours in milliseconds
       }
     };
 

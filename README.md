@@ -67,7 +67,7 @@ A comprehensive### 🏆 **Race Management System**
 
 ### �🎮 **Discord Integration**
 
-- **Slash Commands**: `/members`, `/register`, `/last`, `/botstatus`, `/race`, `/teamraces`
+- **Slash Commands**: `/members`, `/register`, `/last`, `/botstatus`, `/my-races`, `/all-races`
 - **Member Management**: Add, remove, activate/deactivate members
 - **Activity Lookup**: View any member's latest activity on-demand
 - **Race Management**: Complete race lifecycle management with team visibility
@@ -311,11 +311,11 @@ node utils/setup.js validate-webhook
 
 | Command | Description | Usage |
 |---------|-------------|-------|
-| `/race add` | Add an upcoming race | `/race add name: "Marathon" date: 2025-04-21 race_type: road distance_preset: Marathon` |
-| `/race list` | List your races | `/race list` or `/race list status: registered` |
-| `/race remove` | Remove a race | `/race remove race_id: 5` |
-| `/race update` | Update race details | `/race update race_id: 5 status: completed` |
-| `/race upcoming` | Show upcoming races for all members | `/race upcoming days: 30` |
+| `/my-races add` | Add an upcoming race | `/my-races add name: "Marathon" date: 21-04-2025 race_type: road distance_preset: Marathon` |
+| `/my-races list` | List your races | `/my-races list` or `/my-races list status: registered` |
+| `/my-races remove` | Remove a race | `/my-races remove race_id: 5` |
+| `/my-races update` | Update race details | `/my-races update race_id: 5 status: completed` |
+| `/my-races upcoming` | Show upcoming races for all members | `/my-races upcoming days: 30` |
 
 ### Admin Commands (Manage Server Permission Required)
 
@@ -326,8 +326,8 @@ node utils/setup.js validate-webhook
 | `/members deactivate` | Temporarily deactivate a member | `/members deactivate user: @user` |
 | `/members reactivate` | Reactivate a deactivated member | `/members reactivate user: @user` |
 | `/botstatus` | Show bot statistics and health | `/botstatus` |
-| `/teamraces list` | List all team races | `/teamraces list` or `/teamraces list status: upcoming` |
-| `/teamraces upcoming` | Show upcoming races for all members | `/teamraces upcoming days: 60` |
+| `/all-races list` | List all team races | `/all-races list` or `/all-races list status: upcoming` |
+| `/all-races upcoming` | Show upcoming races for all members | `/all-races upcoming days: 60` |
 | `/scheduler weekly` | Manually trigger weekly race announcement | `/scheduler weekly` |
 | `/scheduler monthly` | Manually trigger monthly race announcement | `/scheduler monthly` |
 | `/scheduler status` | Show scheduler status and upcoming races | `/scheduler status` |

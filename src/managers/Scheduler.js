@@ -1,7 +1,7 @@
 const cron = require('node-cron');
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../utils/Logger');
-const DiscordUtils = require('../utils/DiscordUtils');
+const { DATE } = require('../constants');
 
 class Scheduler {
   constructor(activityProcessor, raceManager) {
@@ -16,11 +16,11 @@ class Scheduler {
    */
   groupRacesByDate(races) {
     const racesByDate = {};
-    races.forEach(race => {
+    for (const race of races) {
       const date = race.race_date;
       if (!racesByDate[date]) racesByDate[date] = [];
       racesByDate[date].push(race);
-    });
+    }
     return racesByDate;
   }
 
@@ -262,7 +262,6 @@ class Scheduler {
    */
   createMonthlyRaceEmbed(races) {
     const monthStart = this.getMonthStart();
-    const monthEnd = this.getMonthEnd();
     
     const embed = new EmbedBuilder()
       .setTitle('📅 This Month\'s Team Races')
@@ -280,18 +279,18 @@ class Scheduler {
       // Group races by week
       const racesByWeek = this.groupRacesByWeek(races);
       
-      Object.keys(racesByWeek).forEach((weekKey, index) => {
-        const weekRaces = racesByWeek[weekKey];
+      for (const [weekKey, weekRaces] of Object.entries(racesByWeek)) {
         const [weekStart, weekEnd] = weekKey.split(' - ');
+        const weekIndex = Object.keys(racesByWeek).indexOf(weekKey);
         
         const raceList = weekRaces.map(race => this.formatRaceItem(race, true)).join('\n');
 
         embed.addFields([{
-          name: `Week ${index + 1}: ${weekStart} - ${weekEnd}`,
+          name: `Week ${weekIndex + 1}: ${weekStart} - ${weekEnd}`,
           value: raceList || '📭 No races this week',
           inline: false
         }]);
-      });
+      }
 
       const uniqueMembers = new Set(races.map(race => race.memberName));
       embed.setFooter({ 
@@ -308,7 +307,7 @@ class Scheduler {
   groupRacesByWeek(races) {
     const weeks = {};
     
-    races.forEach(race => {
+    for (const race of races) {
       const raceDate = new Date(race.race_date + 'T00:00:00');
       const weekStart = this.getWeekStartForDate(raceDate);
       const weekEnd = new Date(weekStart);
@@ -318,7 +317,7 @@ class Scheduler {
       
       if (!weeks[weekKey]) weeks[weekKey] = [];
       weeks[weekKey].push(race);
-    });
+    }
     
     return weeks;
   }
@@ -329,7 +328,7 @@ class Scheduler {
   getWeekStart() {
     const now = new Date();
     const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+    const diff = now.getDate() - day + (day === DATE.SUNDAY ? DATE.WEEK_ADJUSTMENT_SUNDAY : DATE.WEEK_ADJUSTMENT_OTHER); // Adjust when day is Sunday
     const monday = new Date(now.setDate(diff));
     monday.setHours(0, 0, 0, 0);
     return monday;
@@ -367,7 +366,7 @@ class Scheduler {
    */
   getWeekStartForDate(date) {
     const day = date.getDay();
-    const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+    const diff = date.getDate() - day + (day === DATE.SUNDAY ? DATE.WEEK_ADJUSTMENT_SUNDAY : DATE.WEEK_ADJUSTMENT_OTHER); // Adjust when day is Sunday
     const monday = new Date(date);
     monday.setDate(diff);
     monday.setHours(0, 0, 0, 0);

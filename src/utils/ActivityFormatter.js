@@ -1,3 +1,5 @@
+const { TIME } = require('../constants');
+
 /**
  * Shared utility functions for formatting activity data
  */
@@ -58,8 +60,8 @@ class ActivityFormatter {
    * @returns {string} Formatted time string (HH:MM:SS or MM:SS)
    */
   static formatTime(timeInSeconds) {
-    const hours = Math.floor(timeInSeconds / 3600);
-    const minutes = Math.floor((timeInSeconds % 3600) / 60);
+    const hours = Math.floor(timeInSeconds / TIME.SECONDS_PER_HOUR);
+    const minutes = Math.floor((timeInSeconds % TIME.SECONDS_PER_HOUR) / 60);
     const seconds = timeInSeconds % 60;
 
     if (hours > 0) {
@@ -95,8 +97,8 @@ class ActivityFormatter {
    */
   static formatSpeed(distanceInMeters, timeInSeconds) {
     if (timeInSeconds === 0) return 'N/A';
-    
-    const hours = timeInSeconds / 3600;
+
+    const hours = timeInSeconds / TIME.SECONDS_PER_HOUR;
     const kmDistance = distanceInMeters / 1000;
     const speedKmh = kmDistance / hours;
     

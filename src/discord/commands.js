@@ -4,6 +4,8 @@ const DiscordUtils = require('../utils/DiscordUtils');
 const RaceManager = require('../managers/RaceManager');
 const logger = require('../utils/Logger');
 const config = require('../../config/config');
+const { TIME, DISCORD } = require('../constants');
+const DateUtils = require('../utils/DateUtils');
 
 class DiscordCommands {
   constructor(activityProcessor) {
@@ -84,7 +86,7 @@ class DiscordCommands {
 
       // Race management commands
       new SlashCommandBuilder()
-        .setName('race')
+        .setName('my-races')
         .setDescription('Manage your upcoming races')
         .addSubcommand(subcommand =>
           subcommand
@@ -100,7 +102,7 @@ class DiscordCommands {
             .addStringOption(option =>
               option
                 .setName('date')
-                .setDescription('Race date (YYYY-MM-DD format, e.g. 2025-04-21)')
+                .setDescription('Race date (DD-MM-YYYY format, e.g. 21-04-2025)')
                 .setRequired(true)
             )
             .addStringOption(option =>
@@ -146,6 +148,13 @@ class DiscordCommands {
                 .setDescription('Goal time (e.g. 1:45:00)')
                 .setRequired(false)
                 .setMaxLength(20)
+            )
+            .addStringOption(option =>
+              option
+                .setName('elevation')
+                .setDescription('Elevation gain/loss (e.g. 5400D+/3600D-)')
+                .setRequired(false)
+                .setMaxLength(50)
             )
             .addStringOption(option =>
               option
@@ -202,7 +211,7 @@ class DiscordCommands {
             .addStringOption(option =>
               option
                 .setName('date')
-                .setDescription('New race date (YYYY-MM-DD)')
+                .setDescription('New race date (DD-MM-YYYY)')
                 .setRequired(false)
             )
             .addStringOption(option =>
@@ -225,6 +234,13 @@ class DiscordCommands {
                 .setDescription('New goal time')
                 .setRequired(false)
                 .setMaxLength(20)
+            )
+            .addStringOption(option =>
+              option
+                .setName('elevation')
+                .setDescription('New elevation (e.g. 5400D+/3600D-)')
+                .setRequired(false)
+                .setMaxLength(50)
             )
             .addStringOption(option =>
               option
@@ -256,8 +272,8 @@ class DiscordCommands {
 
       // Team races command (admin only)
       new SlashCommandBuilder()
-        .setName('teamraces')
-        .setDescription('View all team races')
+        .setName('all-races')
+        .setDescription('View all team races (admin only)')
         .addSubcommand(subcommand =>
           subcommand
             .setName('list')
@@ -343,7 +359,11 @@ class DiscordCommands {
       user: interaction.user.tag,
       userId: interaction.user.id,
       guild: interaction.guild?.name,
-      channel: interaction.channel?.name
+      channel: interaction.channel?.name,
+      interactionId: interaction.id,
+      createdTimestamp: interaction.createdTimestamp,
+      currentTimestamp: Date.now(),
+      ageMs: Date.now() - interaction.createdTimestamp
     });
 
     try {
@@ -360,10 +380,10 @@ class DiscordCommands {
       case 'last':
         await this.handleLastActivityCommand(interaction, options);
         break;
-      case 'race':
+      case 'my-races':
         await this.handleRaceCommand(interaction, options);
         break;
-      case 'teamraces':
+      case 'all-races':
         await this.handleTeamRacesCommand(interaction, options);
         break;
       case 'settings':
@@ -426,18 +446,18 @@ class DiscordCommands {
       const memberStats = await this.activityProcessor.memberManager.getStats();
       
       // Load Discord user data from JSON fallback for missing guild cache
-      let jsonMemberData = {};
+      const jsonMemberData = {};
       try {
         const fs = require('node:fs').promises;
         const path = require('node:path');
-        const jsonPath = path.join(__dirname, '../../data/data/members.json');
+        const jsonPath = path.join(__dirname, '../../data/members.json');
         const jsonData = await fs.readFile(jsonPath, 'utf8');
         const memberDataJson = JSON.parse(jsonData);
         
         // Create lookup by discordUserId
-        memberDataJson.members.forEach(jsonMember => {
+        for (const jsonMember of memberDataJson.members) {
           jsonMemberData[jsonMember.discordUserId] = jsonMember.discordUser;
-        });
+        }
       } catch (error) {
         logger.discord.debug('Could not load JSON member data for fallback', { error: error.message });
       }
@@ -459,13 +479,13 @@ class DiscordCommands {
       // Group members into chunks of 10 for better display
       const memberChunks = DiscordUtils.chunkArray(members, 10);
       
-      memberChunks[0].forEach((member, _index) => {
+      for (const member of memberChunks[0]) {
         const user = interaction.guild?.members.cache.get(member.discordUserId);
         const displayName = user ? `<@${member.discordUserId}>` : `User ID: ${member.discordUserId}`;
         
         // Get Discord name with multiple fallbacks
         let discordName;
-        if (user && user.displayName) {
+        if (user?.displayName) {
           // First: Try guild member cache
           discordName = user.displayName;
         } else if (jsonMemberData[member.discordUserId]) {
@@ -487,7 +507,7 @@ class DiscordCommands {
           value: `Strava: ${stravaName}\nDiscord: ${displayName}\nRegistered: ${new Date(member.registeredAt).toLocaleDateString()}\nStatus: ${member.isActive ? '🟢 Active' : '🔴 Inactive'}`,
           inline: true
         }]);
-      });
+      }
 
       if (memberChunks.length > 1) {
         embed.setFooter({ text: `Showing first 10 of ${members.length} members` });
@@ -687,14 +707,16 @@ class DiscordCommands {
 
   // Handle register command
   async handleRegisterCommand(interaction) {
+    // Acknowledge immediately to prevent timeout
+    await interaction.deferReply({ ephemeral: true });
+
     const userId = interaction.user.id;
     const existingMember = await this.activityProcessor.memberManager.getMemberByDiscordId(userId);
 
     if (existingMember) {
       const memberName = existingMember.discordUser ? existingMember.discordUser.displayName : `${existingMember.athlete.firstname} ${existingMember.athlete.lastname}`;
-      await interaction.reply({
-        content: `✅ You're already registered as **${memberName}**.`,
-        ephemeral: true
+      await interaction.editReply({
+        content: `✅ You're already registered as **${memberName}**.`
       });
       return;
     }
@@ -716,10 +738,9 @@ class DiscordCommands {
       })
       .setTimestamp();
 
-    await interaction.reply({ 
-      embeds: [embed],
-      ephemeral: true 
-    } );
+    await interaction.editReply({
+      embeds: [embed]
+    });
   }
 
 
@@ -748,7 +769,7 @@ class DiscordCommands {
           },
           {
             name: '⏰ Uptime',
-            value: `${Math.floor(stats.uptime / 3600)}h ${Math.floor((stats.uptime % 3600) / 60)}m`,
+            value: `${Math.floor(stats.uptime / TIME.SECONDS_PER_HOUR)}h ${Math.floor((stats.uptime % TIME.SECONDS_PER_HOUR) / 60)}m`,
             inline: true
           },
           {
@@ -785,7 +806,31 @@ class DiscordCommands {
 
   // Handle last activity command
   async handleLastActivityCommand(interaction, options) {
-    await interaction.deferReply();
+    const startTime = Date.now();
+    logger.discord.info('handleLastActivityCommand: START', {
+      interactionId: interaction.id,
+      replied: interaction.replied,
+      deferred: interaction.deferred,
+      createdTimestamp: interaction.createdTimestamp,
+      currentTimestamp: Date.now(),
+      ageMs: Date.now() - interaction.createdTimestamp
+    });
+
+    try {
+      logger.discord.info('handleLastActivityCommand: Calling deferReply()');
+      await interaction.deferReply();
+      logger.discord.info('handleLastActivityCommand: deferReply() completed', {
+        durationMs: Date.now() - startTime
+      });
+    } catch (error) {
+      logger.discord.error('handleLastActivityCommand: deferReply() FAILED', {
+        error: error.message,
+        code: error.code,
+        ageMs: Date.now() - interaction.createdTimestamp,
+        durationMs: Date.now() - startTime
+      });
+      throw error;
+    }
 
     try {
       const memberInput = options.getString('member');
@@ -808,18 +853,18 @@ class DiscordCommands {
       }
 
       // Load JSON member data for Discord name fallback
-      let jsonMemberData = {};
+      const jsonMemberData = {};
       try {
         const fs = require('node:fs').promises;
         const path = require('node:path');
-        const jsonPath = path.join(__dirname, '../../data/data/members.json');
+        const jsonPath = path.join(__dirname, '../../data/members.json');
         const jsonData = await fs.readFile(jsonPath, 'utf8');
         const memberDataJson = JSON.parse(jsonData);
         
         // Create lookup by discordUserId
-        memberDataJson.members.forEach(jsonMember => {
+        for (const jsonMember of memberDataJson.members) {
           jsonMemberData[jsonMember.discordUserId] = jsonMember.discordUser;
-        });
+        }
       } catch (error) {
         logger.discord.debug('Could not load JSON member data for fallback', { error: error.message });
       }
@@ -827,7 +872,7 @@ class DiscordCommands {
       // Helper function to get Discord name with fallbacks
       const getDiscordName = (member) => {
         const user = interaction.guild?.members.cache.get(member.discordUserId);
-        if (user && user.displayName) {
+        if (user?.displayName) {
           return user.displayName;
         } else if (jsonMemberData[member.discordUserId]) {
           return jsonMemberData[member.discordUserId].displayName || jsonMemberData[member.discordUserId].username;
@@ -851,7 +896,7 @@ class DiscordCommands {
         const memberName = getDiscordName(member);
         await interaction.editReply({
           content: `❌ **${memberName}** needs to re-authorize with Strava to view their activities.\n` +
-                   `Please use the \`/register\` command to reconnect your Strava account.`,
+                   'Please use the `/register` command to reconnect your Strava account.',
         });
         return;
       }
@@ -960,21 +1005,25 @@ class DiscordCommands {
     if (focusedOption.name === 'member') {
       try {
         const members = await this.activityProcessor.memberManager.getAllMembers();
-        const searchTerm = focusedOption.value.toLowerCase();
+        const searchTerm = (focusedOption.value || '').toLowerCase();
         
         const choices = members
+          .filter(member => member.athlete && member.athlete.firstname && member.athlete.lastname)
           .filter(member => {
-            const memberName = member.discordUser ? member.discordUser.displayName.toLowerCase() : `${member.athlete.firstname} ${member.athlete.lastname}`.toLowerCase();
-            const fullName = `${member.athlete.firstname} ${member.athlete.lastname}`.toLowerCase();
-            return memberName.includes(searchTerm) || 
-                   fullName.includes(searchTerm) || 
-                   member.athlete.firstname.toLowerCase().includes(searchTerm) ||
-                   member.athlete.lastname.toLowerCase().includes(searchTerm);
+            const firstName = member.athlete.firstname?.toLowerCase() || '';
+            const lastName = member.athlete.lastname?.toLowerCase() || '';
+            const memberName = member.discordUser?.displayName?.toLowerCase() || `${firstName} ${lastName}`;
+            const fullName = `${firstName} ${lastName}`.trim();
+
+            return memberName.includes(searchTerm) ||
+                   fullName.includes(searchTerm) ||
+                   firstName.includes(searchTerm) ||
+                   lastName.includes(searchTerm);
           })
-          .slice(0, 25) // Discord limits to 25 choices
+          .slice(0, DISCORD.MAX_EMBED_FIELDS) // Discord limits to 25 choices
           .map(member => ({
-            name: member.discordUser ? member.discordUser.displayName : `${member.athlete.firstname} ${member.athlete.lastname}`,
-            value: member.discordUser ? member.discordUser.displayName : `${member.athlete.firstname} ${member.athlete.lastname}`
+            name: member.discordUser?.displayName || `${member.athlete.firstname} ${member.athlete.lastname}`,
+            value: member.discordUser?.displayName || `${member.athlete.firstname} ${member.athlete.lastname}`
           }));
 
         await interaction.respond(choices);
@@ -1028,6 +1077,39 @@ class DiscordCommands {
     }
   }
 
+  // Helper: Process distance for race based on type and user input
+  _processRaceDistance(raceType, distancePreset, customDistance) {
+    let finalDistance = null;
+    let distanceKm = null;
+    
+    if (raceType === 'road') {
+      if (distancePreset && distancePreset !== 'other') {
+        // Use preset distance
+        const km = Number.parseFloat(distancePreset);
+        finalDistance = this.formatDistanceDisplay(km);
+        distanceKm = km.toString();
+      } else if (distancePreset === 'other' && customDistance) {
+        // Use custom distance for "other" road race
+        const km = Number.parseFloat(customDistance.replaceAll(/[^\d.]/g, ''));
+        if (Number.isNaN(km) || km <= 0) {
+          throw new Error('Custom distance must be a valid positive number');
+        }
+        finalDistance = `${km}km`;
+        distanceKm = km.toString();
+      }
+    } else if (raceType === 'trail' && customDistance) {
+      // Trail races always use custom distance
+      const km = Number.parseFloat(customDistance.replaceAll(/[^\d.]/g, ''));
+      if (Number.isNaN(km) || km <= 0) {
+        throw new Error('Distance must be a valid positive number for trail races');
+      }
+      finalDistance = `${km}km`;
+      distanceKm = km.toString();
+    }
+    
+    return { finalDistance, distanceKm };
+  }
+
   // Add a new race
   async addRace(interaction, options) {
     await interaction.deferReply({ ephemeral: false });
@@ -1038,33 +1120,7 @@ class DiscordCommands {
       const customDistance = options.getString('custom_distance');
       
       // Process distance based on race type and user input
-      let finalDistance = null;
-      let distanceKm = null;
-      
-      if (raceType === 'road') {
-        if (distancePreset && distancePreset !== 'other') {
-          // Use preset distance
-          const km = parseFloat(distancePreset);
-          finalDistance = this.formatDistanceDisplay(km);
-          distanceKm = km.toString();
-        } else if (distancePreset === 'other' && customDistance) {
-          // Use custom distance for "other" road race
-          const km = parseFloat(customDistance.replace(/[^\d.]/g, ''));
-          if (isNaN(km) || km <= 0) {
-            throw new Error('Custom distance must be a valid positive number');
-          }
-          finalDistance = `${km}km`;
-          distanceKm = km.toString();
-        }
-      } else if (raceType === 'trail' && customDistance) {
-        // Trail races always use custom distance
-        const km = parseFloat(customDistance.replace(/[^\d.]/g, ''));
-        if (isNaN(km) || km <= 0) {
-          throw new Error('Distance must be a valid positive number for trail races');
-        }
-        finalDistance = `${km}km`;
-        distanceKm = km.toString();
-      }
+      const { finalDistance, distanceKm } = this._processRaceDistance(raceType, distancePreset, customDistance);
 
       const raceData = {
         name: options.getString('name'),
@@ -1074,6 +1130,7 @@ class DiscordCommands {
         distanceKm: distanceKm,
         location: options.getString('location'),
         goalTime: options.getString('goal'),
+        elevation: options.getString('elevation'),
         notes: options.getString('notes')
       };
 
@@ -1088,7 +1145,7 @@ class DiscordCommands {
           value: `#${race.id}`,
           inline: true
         }])
-        .setFooter({ text: 'Use /race list to see all your races' })
+        .setFooter({ text: 'Use /my-races list to see all your races' })
         .setTimestamp();
 
       await interaction.editReply({ embeds: [embed] });
@@ -1128,14 +1185,15 @@ class DiscordCommands {
       if (races.length === 0) {
         const statusText = status ? ` with status "${status}"` : '';
         await interaction.editReply({
-          content: `📭 No races found${statusText}. Use \`/race add\` to add your first race!`,
+          content: `📭 No races found${statusText}. Use \`/my-races add\` to add your first race!`,
           ephemeral: true
         });
         return;
       }
 
+      const statusSuffix = status ? ` (${status})` : '';
       const embed = new EmbedBuilder()
-        .setTitle(`🏃 Your Races${status ? ` (${status})` : ''}`)
+        .setTitle(`🏃 Your Races${statusSuffix}`)
         .setColor('#FC4C02')
         .setDescription(`Found ${races.length} race${races.length === 1 ? '' : 's'}`)
         .setTimestamp();
@@ -1143,13 +1201,13 @@ class DiscordCommands {
       // Group races into chunks of 5 for better display
       const raceChunks = DiscordUtils.chunkArray(races, 5);
       
-      raceChunks[0].forEach((race) => {
+      for (const race of raceChunks[0]) {
         embed.addFields([{
           name: `#${race.id} - ${race.name}`,
           value: this.raceManager.formatRaceDisplay(race),
           inline: false
         }]);
-      });
+      }
 
       if (raceChunks.length > 1) {
         embed.setFooter({ text: `Showing first 5 of ${races.length} races` });
@@ -1186,7 +1244,7 @@ class DiscordCommands {
         .addFields([
           {
             name: 'Race Date',
-            value: new Date(removedRace.raceDate + 'T00:00:00').toLocaleDateString(),
+            value: DateUtils.formatForDisplay(removedRace.raceDate),
             inline: true
           },
           {
@@ -1226,6 +1284,7 @@ class DiscordCommands {
       if (options.getString('distance')) updates.distance = options.getString('distance');
       if (options.getString('location')) updates.location = options.getString('location');
       if (options.getString('goal')) updates.goalTime = options.getString('goal');
+      if (options.getString('elevation')) updates.elevation = options.getString('elevation');
       if (options.getString('status')) updates.status = options.getString('status');
 
       if (Object.keys(updates).length === 0) {
@@ -1300,11 +1359,11 @@ class DiscordCommands {
 
       // Group by date and show races
       const racesByDate = {};
-      racesWithMembers.forEach(race => {
+      for (const race of racesWithMembers) {
         const date = race.race_date;
         if (!racesByDate[date]) racesByDate[date] = [];
         racesByDate[date].push(race);
-      });
+      }
 
       // Sort dates and add fields
       const sortedDates = Object.keys(racesByDate).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
@@ -1393,8 +1452,9 @@ class DiscordCommands {
         })
       );
 
+      const statusSuffix = status ? ` (${status})` : '';
       const embed = new EmbedBuilder()
-        .setTitle(`🏃 Team Races${status ? ` (${status})` : ''}`)
+        .setTitle(`🏃 Team Races${statusSuffix}`)
         .setColor('#FC4C02')
         .setDescription(`Found ${races.length} race${races.length === 1 ? '' : 's'}`)
         .setTimestamp();
@@ -1402,14 +1462,19 @@ class DiscordCommands {
       // Group races into chunks of 10 for better display
       const raceChunks = DiscordUtils.chunkArray(racesWithMembers, 10);
       
-      raceChunks[0].forEach((race) => {
-        const raceDate = new Date(race.race_date + 'T00:00:00').toLocaleDateString();
+      for (const race of raceChunks[0]) {
+        const raceDate = DateUtils.formatForDisplay(race.race_date);
+        const distanceInfo = race.distance ? ` • 📏 ${race.distance}` : '';
+        const locationInfo = race.location ? ` • 📍 ${race.location}` : '';
+        const statusEmoji = this.raceManager.getStatusEmoji(race.status);
+        const statusText = race.status.toUpperCase();
+        
         embed.addFields([{
           name: `#${race.id} - ${race.name} (${race.memberName})`,
-          value: `📅 ${raceDate}${race.distance ? ` • 📏 ${race.distance}` : ''}${race.location ? ` • 📍 ${race.location}` : ''}\n${this.raceManager.getStatusEmoji(race.status)} ${race.status.toUpperCase()}`,
+          value: `📅 ${raceDate}${distanceInfo}${locationInfo}\n${statusEmoji} ${statusText}`,
           inline: true
         }]);
-      });
+      }
 
       if (raceChunks.length > 1) {
         embed.setFooter({ text: `Showing first 10 of ${races.length} races` });
@@ -1749,7 +1814,7 @@ class DiscordCommands {
       // Other settings
       const otherSettings = Object.entries(allSettings)
         .filter(([key]) => key !== 'discord_channel_id')
-        .slice(0, 10); // Limit to prevent embed overflow
+        .slice(0, DISCORD.ITEMS_PER_PAGE); // Limit to prevent embed overflow
 
       if (otherSettings.length > 0) {
         const settingsText = otherSettings

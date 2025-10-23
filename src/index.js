@@ -113,7 +113,7 @@ const args = process.argv.slice(2);
 
 if (args.includes('--status')) {
   // Just print status and exit
-  (async () => {
+  void (async () => {
     try {
       const status = await bot.getStatus();
       console.log(JSON.stringify(status, null, 2));

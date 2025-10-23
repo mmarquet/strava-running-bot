@@ -15,20 +15,32 @@ jest.mock('../../src/utils/Logger', () => ({
 
 // Mock connection with a real database-like interface
 const mockDb = {
-  select: jest.fn().mockReturnThis(),
-  from: jest.fn().mockReturnThis(),
-  where: jest.fn().mockReturnThis(),
+  select: jest.fn(),
+  from: jest.fn(),
+  where: jest.fn(),
   orderBy: jest.fn().mockReturnValue(Promise.resolve([])), // Changed to return promise with array by default
   get: jest.fn(),
   all: jest.fn().mockReturnValue([]),
-  insert: jest.fn().mockReturnThis(),
-  values: jest.fn().mockReturnThis(),
-  returning: jest.fn().mockReturnThis(),
-  update: jest.fn().mockReturnThis(),
-  set: jest.fn().mockReturnThis(),
-  delete: jest.fn().mockReturnThis(),
-  run: jest.fn().mockReturnValue({ changes: 1 })
+  insert: jest.fn(),
+  values: jest.fn(),
+  returning: jest.fn(),
+  update: jest.fn(),
+  set: jest.fn(),
+  delete: jest.fn(),
+  run: jest.fn().mockReturnValue({ changes: 1 }),
+  transaction: jest.fn((callback) => () => callback())
 };
+
+// Set up chaining for mockDb methods
+mockDb.select.mockReturnValue(mockDb);
+mockDb.from.mockReturnValue(mockDb);
+mockDb.where.mockReturnValue(mockDb);
+mockDb.insert.mockReturnValue(mockDb);
+mockDb.values.mockReturnValue(mockDb);
+mockDb.returning.mockReturnValue(mockDb);
+mockDb.update.mockReturnValue(mockDb);
+mockDb.set.mockReturnValue(mockDb);
+mockDb.delete.mockReturnValue(mockDb);
 
 jest.mock('../../src/database/connection', () => ({
   initialize: jest.fn().mockResolvedValue(mockDb),
@@ -56,7 +68,8 @@ jest.mock('../../config/config', () => ({
     verifyToken: 'test-verify-token'
   },
   security: {
-    encryptionKey: 'test-encryption-key-32-bytes!!'
+    // 64 hex characters = 32 bytes
+    encryptionKey: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
   },
   server: {
     port: 3000
@@ -93,7 +106,20 @@ describe('DatabaseManager', () => {
     // Reset all mocks and state
     jest.clearAllMocks();
     dbConnection.initialize.mockResolvedValue(mockDb);
-    
+
+    // Re-setup chaining after clearAllMocks
+    mockDb.select.mockReturnValue(mockDb);
+    mockDb.from.mockReturnValue(mockDb);
+    mockDb.where.mockReturnValue(mockDb);
+    mockDb.insert.mockReturnValue(mockDb);
+    mockDb.values.mockReturnValue(mockDb);
+    mockDb.returning.mockReturnValue(mockDb);
+    mockDb.update.mockReturnValue(mockDb);
+    mockDb.set.mockReturnValue(mockDb);
+    mockDb.delete.mockReturnValue(mockDb);
+    mockDb.run.mockReturnValue({ changes: 1 });
+    mockDb.transaction.mockImplementation((callback) => () => callback());
+
     // Reset DatabaseManager singleton state
     DatabaseManager.isInitialized = false;
     DatabaseManager.db = null;
@@ -236,9 +262,9 @@ describe('DatabaseManager', () => {
       mockDb.returning.mockResolvedValue([{ athlete_id: athleteId }]);
       
       const result = await DatabaseManager.updateTokens(athleteId, tokenData);
-      
-      // updateTokens returns a boolean, not an object
-      expect(result).toBe(true);
+
+      // updateTokens now returns the updated member object
+      expect(result).toEqual({ athlete_id: athleteId });
       expect(mockDb.update).toHaveBeenCalled();
     });
 
@@ -884,7 +910,8 @@ describe('DatabaseManager', () => {
 
       // Mock deletes for races and member
       const mockDeleteChain = {
-        where: jest.fn().mockResolvedValue()
+        where: jest.fn().mockReturnThis(),
+        run: jest.fn().mockReturnValue({ changes: 1 })
       };
       mockDb.delete.mockReturnValue(mockDeleteChain);
 

@@ -1,5 +1,7 @@
 const databaseManager = require('../database/DatabaseManager');
 const logger = require('../utils/Logger');
+const { VALIDATION, DATE, RACE_EMOJI } = require('../constants');
+const DateUtils = require('../utils/DateUtils');
 
 class RaceManager {
   constructor() {
@@ -17,23 +19,27 @@ class RaceManager {
       // Get member by Discord ID
       const member = await this.databaseManager.getMemberByDiscordId(discordUserId);
       
-      if (!member || !member.isActive) {
+      if (!member?.isActive) {
         throw new Error('Member not found or inactive');
       }
 
       // Validate race data
       this.validateRaceData(raceData);
 
+      // Convert date from DD-MM-YYYY to YYYY-MM-DD for storage
+      const isoDate = DateUtils.convertDDMMYYYYToISO(raceData.raceDate);
+
       // Add the race
       const race = await this.databaseManager.addRace(member.athleteId, {
         name: raceData.name.trim(),
-        raceDate: raceData.raceDate,
+        raceDate: isoDate,
         raceType: raceData.raceType || 'road',
         distance: raceData.distance?.trim() || null,
         distanceKm: raceData.distanceKm?.trim() || null,
         location: raceData.location?.trim() || null,
         notes: raceData.notes?.trim() || null,
         goalTime: raceData.goalTime?.trim() || null,
+        elevation: raceData.elevation?.trim() || null,
         status: 'registered'
       });
 
@@ -81,9 +87,16 @@ class RaceManager {
       if (updates.notes) updates.notes = updates.notes.trim();
       if (updates.goal) updates.goal_time = updates.goal; // Map goal to goal_time
       if (updates.goalTime) updates.goal_time = updates.goalTime.trim(); // Also handle goalTime directly
-      if (updates.date) updates.race_date = updates.date; // Map date to race_date
-      if (updates.raceDate) updates.race_date = updates.raceDate; // Also handle raceDate directly
-      
+      if (updates.elevation) updates.elevation = updates.elevation.trim();
+
+      // Handle date fields and convert DD-MM-YYYY to YYYY-MM-DD
+      if (updates.date) {
+        updates.race_date = DateUtils.convertDDMMYYYYToISO(updates.date);
+      }
+      if (updates.raceDate) {
+        updates.race_date = DateUtils.convertDDMMYYYYToISO(updates.raceDate);
+      }
+
       // Clean up any unmapped fields to avoid column errors
       delete updates.goal;
       delete updates.date;
@@ -157,7 +170,7 @@ class RaceManager {
       
       return await this.databaseManager.db.select()
         .from(races)
-        .where(eq(races.id, parseInt(raceId)))
+        .where(eq(races.id, Number.parseInt(raceId, 10)))
         .get();
     } catch (error) {
       logger.database.error('Failed to get race by ID', { raceId, error: error.message });
@@ -245,72 +258,72 @@ class RaceManager {
     }
   }
 
+  // Helper: Validate race date (accepts DD-MM-YYYY format)
+  _validateRaceDate(raceDate) {
+    if (!raceDate) {
+      throw new TypeError('Race date is required');
+    }
+
+    const dateRegex = /^\d{2}-\d{2}-\d{4}$/;
+    if (!dateRegex.test(raceDate)) {
+      throw new TypeError('Race date must be in DD-MM-YYYY format');
+    }
+
+    // Validate by attempting conversion
+    try {
+      DateUtils.convertDDMMYYYYToISO(raceDate);
+    } catch (_error) {
+      throw new TypeError('Invalid race date');
+    }
+  }
+
+  // Helper: Validate distance
+  _validateDistance(distanceKm) {
+    if (!distanceKm) return;
+
+    const distance = Number.parseFloat(distanceKm);
+    if (Number.isNaN(distance) || distance <= VALIDATION.MIN_DISTANCE) {
+      throw new TypeError('Distance must be a positive number');
+    }
+    if (distance > VALIDATION.MAX_DISTANCE) {
+      throw new TypeError(`Distance cannot exceed ${VALIDATION.MAX_DISTANCE}km`);
+    }
+  }
+
+  // Helper: Validate field lengths
+  _validateFieldLengths(raceData) {
+    const validations = [
+      { field: 'name', maxLength: VALIDATION.MAX_NAME_LENGTH, label: 'Race name' },
+      { field: 'distance', maxLength: VALIDATION.MAX_DISTANCE_STRING_LENGTH, label: 'Distance' },
+      { field: 'location', maxLength: VALIDATION.MAX_LOCATION_LENGTH, label: 'Location' },
+      { field: 'notes', maxLength: VALIDATION.MAX_NOTES_LENGTH, label: 'Notes' },
+      { field: 'goalTime', maxLength: VALIDATION.MAX_GOAL_TIME_LENGTH, label: 'Goal time' },
+      { field: 'elevation', maxLength: VALIDATION.MAX_ELEVATION_LENGTH, label: 'Elevation' }
+    ];
+
+    for (const { field, maxLength, label } of validations) {
+      const value = field === 'name' ? raceData[field]?.trim() : raceData[field];
+      if (value && value.length > maxLength) {
+        throw new TypeError(`${label} cannot exceed ${maxLength} characters`);
+      }
+    }
+  }
+
   // Validate race data
   validateRaceData(raceData) {
     if (!raceData.name || raceData.name.trim().length === 0) {
-      throw new Error('Race name is required');
+      throw new TypeError('Race name is required');
     }
 
-    if (!raceData.raceDate) {
-      throw new Error('Race date is required');
-    }
-
-    // Validate date format (YYYY-MM-DD)
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(raceData.raceDate)) {
-      throw new Error('Race date must be in YYYY-MM-DD format');
-    }
-
-    // Check if date is valid
-    const date = new Date(raceData.raceDate + 'T00:00:00');
-    if (isNaN(date.getTime())) {
-      throw new Error('Invalid race date');
-    }
-
-    // Optional: Check if date is not in the past (uncomment if needed)
-    // const today = new Date();
-    // today.setHours(0, 0, 0, 0);
-    // if (date < today) {
-    //   throw new Error('Race date cannot be in the past');
-    // }
+    this._validateRaceDate(raceData.raceDate);
 
     // Validate race type
     if (raceData.raceType && !['road', 'trail'].includes(raceData.raceType)) {
-      throw new Error('Race type must be either "road" or "trail"');
+      throw new TypeError('Race type must be either "road" or "trail"');
     }
 
-    // Validate distance km if provided
-    if (raceData.distanceKm) {
-      const distanceKm = parseFloat(raceData.distanceKm);
-      if (isNaN(distanceKm) || distanceKm <= 0) {
-        throw new Error('Distance must be a positive number');
-      }
-      if (distanceKm > 1000) {
-        throw new Error('Distance cannot exceed 1000km');
-      }
-    }
-
-    // Validate race name length
-    if (raceData.name.trim().length > 100) {
-      throw new Error('Race name cannot exceed 100 characters');
-    }
-
-    // Validate optional fields
-    if (raceData.distance && raceData.distance.length > 20) {
-      throw new Error('Distance cannot exceed 20 characters');
-    }
-
-    if (raceData.location && raceData.location.length > 100) {
-      throw new Error('Location cannot exceed 100 characters');
-    }
-
-    if (raceData.notes && raceData.notes.length > 500) {
-      throw new Error('Notes cannot exceed 500 characters');
-    }
-
-    if (raceData.goalTime && raceData.goalTime.length > 20) {
-      throw new Error('Goal time cannot exceed 20 characters');
-    }
+    this._validateDistance(raceData.distanceKm);
+    this._validateFieldLengths(raceData);
   }
 
   // Format race for display
@@ -322,13 +335,14 @@ class RaceManager {
     const typeLabel = race.race_type === 'trail' ? 'Trail' : 'Road';
     
     if (race.race_date) {
+      const ddmmyyyy = DateUtils.convertISOToDDMMYYYY(race.race_date);
       const date = new Date(race.race_date + 'T00:00:00');
-      display += ` - ${date.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      })}`;
+      display += ` - ${date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })} (${ddmmyyyy})`;
     }
 
     display += `\n${typeEmoji} ${typeLabel} Race`;
@@ -345,19 +359,16 @@ class RaceManager {
       display += `\n🎯 Goal: ${race.goal_time}`;
     }
 
+    if (race.elevation) {
+      display += `\n🏔️ Elevation: ${race.elevation}`;
+    }
+
     if (race.actual_time && race.status === 'completed') {
       display += `\n⏱️ Time: ${race.actual_time}`;
     }
 
     if (includeStatus) {
-      const statusEmojis = {
-        'registered': '📝',
-        'completed': '✅', 
-        'cancelled': '❌',
-        'dns': '🚫', // Did Not Start
-        'dnf': '⚠️'  // Did Not Finish
-      };
-      display += `\n${statusEmojis[race.status] || '❓'} ${race.status.toUpperCase()}`;
+      display += `\n${RACE_EMOJI[race.status] || '❓'} ${race.status.toUpperCase()}`;
     }
 
     if (race.notes) {
@@ -369,14 +380,7 @@ class RaceManager {
 
   // Get race status emoji
   getStatusEmoji(status) {
-    const statusEmojis = {
-      'registered': '📝',
-      'completed': '✅',
-      'cancelled': '❌',
-      'dns': '🚫',
-      'dnf': '⚠️'
-    };
-    return statusEmojis[status] || '❓';
+    return RACE_EMOJI[status] || '❓';
   }
 
   // Check if race date is in the future
@@ -465,7 +469,7 @@ class RaceManager {
   getWeekStart() {
     const now = new Date();
     const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+    const diff = now.getDate() - day + (day === DATE.SUNDAY ? DATE.WEEK_ADJUSTMENT_SUNDAY : DATE.WEEK_ADJUSTMENT_OTHER); // Adjust when day is Sunday
     const monday = new Date(now.setDate(diff));
     monday.setHours(0, 0, 0, 0);
     return monday;
@@ -494,7 +498,7 @@ class RaceManager {
 
   // Format date for database query (YYYY-MM-DD)
   formatDateForQuery(date) {
-    return date.toISOString().split('T')[0];
+    return DateUtils.formatDateOnly(date);
   }
 }
 

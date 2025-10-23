@@ -47,7 +47,7 @@ describe('RaceManager', () => {
     it('should add a race successfully', async () => {
       const raceData = {
         name: 'Boston Marathon',
-        raceDate: '2025-04-21',
+        raceDate: '21-04-2025',
         raceType: 'road',
         distance: '42.2km',
         location: 'Boston, MA',
@@ -84,6 +84,7 @@ describe('RaceManager', () => {
         location: 'Boston, MA',
         notes: 'First Boston attempt',
         goalTime: '3:30:00',
+        elevation: null,
         status: 'registered'
       });
       expect(result).toEqual(expectedRace);
@@ -92,7 +93,7 @@ describe('RaceManager', () => {
     it('should throw error if member not found', async () => {
       const raceData = {
         name: 'Boston Marathon',
-        raceDate: '2025-04-21'
+        raceDate: '21-04-2025'
       };
 
       DatabaseManager.getMemberByDiscordId.mockResolvedValue(null);
@@ -104,7 +105,7 @@ describe('RaceManager', () => {
     it('should validate required race data', async () => {
       const raceData = {
         name: '', // Empty name
-        raceDate: '2025-04-21'
+        raceDate: '21-04-2025'
       };
 
       DatabaseManager.getMemberByDiscordId.mockResolvedValue(mockMember);
@@ -122,7 +123,7 @@ describe('RaceManager', () => {
       DatabaseManager.getMemberByDiscordId.mockResolvedValue(mockMember);
 
       await expect(raceManager.addRace('discord123', raceData))
-        .rejects.toThrow('Race date must be in YYYY-MM-DD format');
+        .rejects.toThrow('Race date must be in DD-MM-YYYY format');
     });
   });
 
@@ -213,7 +214,7 @@ describe('RaceManager', () => {
     it('should pass validation for valid data', () => {
       const validData = {
         name: 'Boston Marathon',
-        raceDate: '2025-04-21',
+        raceDate: '21-04-2025',
         distance: '42.2km',
         location: 'Boston, MA'
       };
@@ -223,7 +224,7 @@ describe('RaceManager', () => {
 
     it('should throw error for missing race name', () => {
       const invalidData = {
-        raceDate: '2025-04-21'
+        raceDate: '21-04-2025'
       };
 
       expect(() => raceManager.validateRaceData(invalidData))
@@ -237,13 +238,13 @@ describe('RaceManager', () => {
       };
 
       expect(() => raceManager.validateRaceData(invalidData))
-        .toThrow('Race date must be in YYYY-MM-DD format');
+        .toThrow('Race date must be in DD-MM-YYYY format');
     });
 
     it('should throw error for race name too long', () => {
       const invalidData = {
         name: 'A'.repeat(101), // 101 characters
-        raceDate: '2025-04-21'
+        raceDate: '21-04-2025'
       };
 
       expect(() => raceManager.validateRaceData(invalidData))
@@ -267,6 +268,7 @@ describe('RaceManager', () => {
       const formatted = raceManager.formatRaceDisplay(race);
 
       expect(formatted).toContain('**Boston Marathon**');
+      expect(formatted).toContain('(21-04-2025)'); // DD-MM-YYYY format in display
       expect(formatted).toContain('📍 Boston, MA');
       expect(formatted).toContain('🎯 Goal: 3:30:00');
       expect(formatted).toContain('📝 REGISTERED');

@@ -35,7 +35,31 @@ jest.mock('discord.js', () => {
               setName: jest.fn().mockReturnThis(),
               setDescription: jest.fn().mockReturnThis(),
               setRequired: jest.fn().mockReturnThis(),
+              setMaxLength: jest.fn().mockReturnThis(),
+              addChoices: jest.fn().mockReturnThis(),
               setAutocomplete: jest.fn().mockReturnThis()
+            };
+            optionCallback(option);
+            subcommand.options.push(option);
+            return subcommand;
+          }),
+          addIntegerOption: jest.fn().mockImplementation((optionCallback) => {
+            const option = {
+              setName: jest.fn().mockReturnThis(),
+              setDescription: jest.fn().mockReturnThis(),
+              setRequired: jest.fn().mockReturnThis(),
+              setMinValue: jest.fn().mockReturnThis(),
+              setMaxValue: jest.fn().mockReturnThis()
+            };
+            optionCallback(option);
+            subcommand.options.push(option);
+            return subcommand;
+          }),
+          addChannelOption: jest.fn().mockImplementation((optionCallback) => {
+            const option = {
+              setName: jest.fn().mockReturnThis(),
+              setDescription: jest.fn().mockReturnThis(),
+              setRequired: jest.fn().mockReturnThis()
             };
             optionCallback(option);
             subcommand.options.push(option);
@@ -52,6 +76,8 @@ jest.mock('discord.js', () => {
           setName: jest.fn().mockReturnThis(),
           setDescription: jest.fn().mockReturnThis(),
           setRequired: jest.fn().mockReturnThis(),
+          setMaxLength: jest.fn().mockReturnThis(),
+          addChoices: jest.fn().mockReturnThis(),
           setAutocomplete: jest.fn().mockImplementation((auto) => {
             option.autocomplete = auto;
             return option;
@@ -98,7 +124,8 @@ jest.mock('../../src/utils/Logger', () => ({
   discord: {
     info: jest.fn(),
     error: jest.fn(),
-    warn: jest.fn()
+    warn: jest.fn(),
+    debug: jest.fn()
   }
 }));
 jest.mock('../../config/config', () => ({
@@ -232,7 +259,7 @@ describe('DiscordCommands', () => {
     it('should return array of slash commands', () => {
       const commands = discordCommands.getCommands();
 
-      expect(commands).toHaveLength(4);
+      expect(commands).toHaveLength(8); // members, register, botstatus, last, race, teamraces, settings, scheduler
       expect(commands.every(cmd => cmd instanceof SlashCommandBuilder)).toBe(true);
     });
 
@@ -371,7 +398,7 @@ describe('DiscordCommands', () => {
   describe('listMembers', () => {
     beforeEach(() => {
       mockMemberManager.getAllMembers.mockResolvedValue([mockMember]);
-      mockMemberManager.getStats.mockReturnValue({ active: 1, inactive: 0, total: 1 });
+      mockMemberManager.getStats.mockResolvedValue({ active: 1, inactive: 0, total: 1 });
     });
 
     it('should list members successfully', async () => {
@@ -657,14 +684,22 @@ describe('DiscordCommands', () => {
   });
 
   describe('handleLastActivityCommand', () => {
+    let findMemberSpy;
+
     beforeEach(() => {
       mockInteraction.options.getString.mockReturnValue('Test User');
-      jest.spyOn(discordCommands, 'findMemberByInput').mockResolvedValue(mockMember);
+      findMemberSpy = jest.spyOn(discordCommands, 'findMemberByInput').mockResolvedValue(mockMember);
       mockMemberManager.getValidAccessToken.mockResolvedValue('valid_token');
       mockStravaAPI.getAthleteActivities.mockResolvedValue([mockActivity]);
       mockStravaAPI.getActivity.mockResolvedValue(mockActivity);
       mockStravaAPI.shouldPostActivity.mockReturnValue(true);
       mockStravaAPI.processActivityWithStreams.mockResolvedValue(mockActivity);
+    });
+
+    afterEach(() => {
+      if (findMemberSpy) {
+        findMemberSpy.mockRestore();
+      }
     });
 
     it('should display member\'s last activity successfully', async () => {
@@ -681,7 +716,7 @@ describe('DiscordCommands', () => {
     });
 
     it('should handle member not found', async () => {
-      jest.spyOn(discordCommands, 'findMemberByInput').mockResolvedValue(null);
+      findMemberSpy.mockResolvedValue(null);
 
       await discordCommands.handleLastActivityCommand(mockInteraction, mockInteraction.options);
 
@@ -696,7 +731,8 @@ describe('DiscordCommands', () => {
       await discordCommands.handleLastActivityCommand(mockInteraction, mockInteraction.options);
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: '❌ Unable to access activities for **Test User**. They may need to re-authorize.'
+        content: '❌ **Test User** needs to re-authorize with Strava to view their activities.\n' +
+                 'Please use the `/register` command to reconnect your Strava account.'
       });
     });
 

@@ -5,6 +5,13 @@ const DiscordCommands = require('../../src/discord/commands');
 const ActivityEmbedBuilder = require('../../src/utils/EmbedBuilder');
 const logger = require('../../src/utils/Logger');
 
+// Mock dynamicConfig
+jest.mock('../../config/dynamicConfig', () => ({
+  getDiscordChannelId: jest.fn()
+}));
+
+const dynamicConfig = require('../../config/dynamicConfig');
+
 // Mock dependencies
 jest.mock('discord.js', () => ({
   Client: jest.fn().mockImplementation(() => ({
@@ -390,6 +397,8 @@ describe('DiscordBot', () => {
     beforeEach(() => {
       mockClient.channels.fetch.mockResolvedValue(mockChannel);
       mockChannel.send.mockResolvedValue({ id: 'message_id' });
+      // Mock the channel ID for successful tests
+      dynamicConfig.getDiscordChannelId.mockResolvedValue(config.discord.channelId);
     });
 
     it('should post activity to Discord channel', async () => {
@@ -412,6 +421,8 @@ describe('DiscordBot', () => {
     });
 
     it('should handle channel not found error', async () => {
+      // Mock successful channel ID retrieval but channel fetch returns null
+      dynamicConfig.getDiscordChannelId.mockResolvedValue(config.discord.channelId);
       mockClient.channels.fetch.mockResolvedValue(null);
 
       await expect(discordBot.postActivity(mockActivityData)).rejects.toThrow('Discord channel not found');
@@ -427,6 +438,8 @@ describe('DiscordBot', () => {
     });
 
     it('should handle channel fetch errors', async () => {
+      // Mock successful channel ID retrieval but channel fetch fails
+      dynamicConfig.getDiscordChannelId.mockResolvedValue(config.discord.channelId);
       const error = new Error('Channel fetch failed');
       mockClient.channels.fetch.mockRejectedValue(error);
 
@@ -443,12 +456,26 @@ describe('DiscordBot', () => {
     });
 
     it('should handle message send errors', async () => {
+      // Mock successful channel ID and fetch but message send fails
+      dynamicConfig.getDiscordChannelId.mockResolvedValue(config.discord.channelId);
+      mockClient.channels.fetch.mockResolvedValue(mockChannel);
       const error = new Error('Missing permissions');
       mockChannel.send.mockRejectedValue(error);
 
       await expect(discordBot.postActivity(mockActivityData)).rejects.toThrow(error);
 
       expect(logger.discord.error).toHaveBeenCalledWith('Failed to post activity to Discord', expect.any(Object));
+    });
+
+    it('should handle missing Discord channel ID configuration', async () => {
+      // Mock channel ID as null/undefined 
+      dynamicConfig.getDiscordChannelId.mockResolvedValue(null);
+
+      await expect(discordBot.postActivity(mockActivityData)).rejects.toThrow('Missing Discord channel ID - use /settings channel to configure');
+
+      expect(logger.discord.error).toHaveBeenCalledWith('Failed to post activity to Discord', {
+        error: 'Missing Discord channel ID - use /settings channel to configure'
+      });
     });
 
     it('should handle activities with missing athlete data', async () => {

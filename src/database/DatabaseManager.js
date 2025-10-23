@@ -1,6 +1,6 @@
-const fs = require('fs').promises;
-const path = require('path');
-const crypto = require('crypto');
+const fs = require('node:fs').promises;
+const path = require('node:path');
+const crypto = require('node:crypto');
 const { eq, and, desc, asc, gte, lte, sql } = require('drizzle-orm');
 const dbConnection = require('./connection');
 const { members, races, migrationLog, settings } = require('./schema');
@@ -152,7 +152,7 @@ class DatabaseManager {
 
     // Insert into database with complete member data including Discord info and tokens
     await this.db.insert(members).values({
-      athlete_id: parseInt(member.athlete.id),
+      athlete_id: Number.parseInt(member.athlete.id),
       discord_id: member.discordUserId,
       discord_user_id: member.discordUserId, // New field for consistency
       athlete: JSON.stringify(member.athlete), // Store as JSON string
@@ -211,7 +211,7 @@ class DatabaseManager {
   async registerMember(discordUserId, athlete, tokenData, discordUser = null) {
     await this.ensureInitialized();
 
-    const athleteId = parseInt(athlete.id);
+    const athleteId = Number.parseInt(athlete.id);
 
     // Check for existing registrations
     const existingByDiscord = await this.getMemberByDiscordId(discordUserId);
@@ -249,7 +249,7 @@ class DatabaseManager {
     
     const member = await this.db.select()
       .from(members)
-      .where(eq(members.athlete_id, parseInt(athleteId)))
+      .where(eq(members.athlete_id, Number.parseInt(athleteId)))
       .get();
 
     return member ? this.decryptMember(member) : null;
@@ -285,7 +285,7 @@ class DatabaseManager {
         is_active: 0,
         updated_at: new Date().toISOString()
       })
-      .where(eq(members.athlete_id, parseInt(athleteId)))
+      .where(eq(members.athlete_id, Number.parseInt(athleteId)))
       .returning();
 
     if (result.length > 0) {
@@ -305,7 +305,7 @@ class DatabaseManager {
         is_active: 1,
         updated_at: new Date().toISOString()
       })
-      .where(eq(members.athlete_id, parseInt(athleteId)))
+      .where(eq(members.athlete_id, Number.parseInt(athleteId)))
       .returning();
 
     if (result.length > 0) {
@@ -328,11 +328,11 @@ class DatabaseManager {
 
       // Delete associated races first (cascade should handle this, but being explicit)
       await this.db.delete(races)
-        .where(eq(races.member_athlete_id, parseInt(athleteId)));
+        .where(eq(races.member_athlete_id, Number.parseInt(athleteId)));
 
       // Delete member
       await this.db.delete(members)
-        .where(eq(members.athlete_id, parseInt(athleteId)));
+        .where(eq(members.athlete_id, Number.parseInt(athleteId)));
 
       logger.memberAction('REMOVED', member.athlete?.firstname || '', member.discordId, athleteId, {
         removedAt: new Date().toISOString()
@@ -358,7 +358,7 @@ class DatabaseManager {
       .set({ 
         updated_at: new Date().toISOString()
       })
-      .where(eq(members.athlete_id, parseInt(athleteId)))
+      .where(eq(members.athlete_id, Number.parseInt(athleteId)))
       .returning();
 
     return result.length > 0;
@@ -375,7 +375,7 @@ class DatabaseManager {
     }
 
     const race = await this.db.insert(races).values({
-      member_athlete_id: parseInt(memberAthleteId),
+      member_athlete_id: Number.parseInt(memberAthleteId),
       name: raceData.name,
       race_date: raceData.raceDate,
       race_type: raceData.raceType || 'road',
@@ -408,7 +408,7 @@ class DatabaseManager {
         ...updates,
         updated_at: new Date().toISOString()
       })
-      .where(eq(races.id, parseInt(raceId)))
+      .where(eq(races.id, Number.parseInt(raceId)))
       .returning();
 
     return result[0] || null;
@@ -419,13 +419,13 @@ class DatabaseManager {
 
     const race = await this.db.select()
       .from(races)
-      .where(eq(races.id, parseInt(raceId)))
+      .where(eq(races.id, Number.parseInt(raceId)))
       .get();
 
     if (!race) return null;
 
     await this.db.delete(races)
-      .where(eq(races.id, parseInt(raceId)));
+      .where(eq(races.id, Number.parseInt(raceId)));
 
     logger.database?.info('Race removed', {
       raceId,
@@ -441,12 +441,12 @@ class DatabaseManager {
 
     let query = this.db.select()
       .from(races)
-      .where(eq(races.member_athlete_id, parseInt(athleteId)));
+      .where(eq(races.member_athlete_id, Number.parseInt(athleteId)));
 
     // Add status filter
     if (options.status) {
       query = query.where(and(
-        eq(races.member_athlete_id, parseInt(athleteId)),
+        eq(races.member_athlete_id, Number.parseInt(athleteId)),
         eq(races.status, options.status)
       ));
     }
@@ -454,14 +454,14 @@ class DatabaseManager {
     // Add date filters
     if (options.fromDate) {
       query = query.where(and(
-        eq(races.member_athlete_id, parseInt(athleteId)),
+        eq(races.member_athlete_id, Number.parseInt(athleteId)),
         gte(races.race_date, options.fromDate)
       ));
     }
 
     if (options.toDate) {
       query = query.where(and(
-        eq(races.member_athlete_id, parseInt(athleteId)),
+        eq(races.member_athlete_id, Number.parseInt(athleteId)),
         lte(races.race_date, options.toDate)
       ));
     }

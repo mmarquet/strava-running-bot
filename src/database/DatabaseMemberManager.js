@@ -99,7 +99,7 @@ class DatabaseMemberManager {
 
       try {
         const config = require('../../config/config');
-        const crypto = require('crypto');
+        const crypto = require('node:crypto');
         
         if (!config.security.encryptionKey) {
           logger.database.warn('No encryption key available for token decryption');
@@ -162,10 +162,10 @@ class DatabaseMemberManager {
     logger.member.debug('Attempting JSON fallback for token decryption', { athleteId: member.athleteId });
     
     try {
-      const fs = require('fs').promises;
-      const path = require('path');
+      const fs = require('node:fs').promises;
+      const path = require('node:path');
       const config = require('../../config/config');
-      const crypto = require('crypto');
+      const crypto = require('node:crypto');
       
       const jsonPath = path.join(__dirname, '../../data/data/members.json');
       const jsonData = await fs.readFile(jsonPath, 'utf8');

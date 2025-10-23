@@ -436,7 +436,7 @@ describe('DiscordCommands', () => {
     });
 
     it('should chunk large member lists', async () => {
-      const manyMembers = Array(15).fill(mockMember);
+      const manyMembers = new Array(15).fill(mockMember);
       mockMemberManager.getAllMembers.mockResolvedValue(manyMembers);
       DiscordUtils.chunkArray.mockReturnValue([manyMembers.slice(0, 10)]);
 
@@ -874,7 +874,7 @@ describe('DiscordCommands', () => {
     });
 
     it('should limit choices to 25 items', async () => {
-      const manyMembers = Array(30).fill(0).map((_, i) => ({
+      const manyMembers = new Array(30).fill(0).map((_, i) => ({
         ...mockMember,
         athlete: { ...mockMember.athlete, id: i, firstname: `User${i}`, lastname: 'Test' },
         discordUser: { displayName: `User${i} Test` }

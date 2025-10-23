@@ -2,15 +2,13 @@ const Database = require('better-sqlite3');
 const { drizzle } = require('drizzle-orm/better-sqlite3');
 const logger = require('../utils/Logger');
 const config = require('../../config/config');
-const path = require('path');
-const fs = require('fs');
+const path = require('node:path');
+const fs = require('node:fs');
 
 class DatabaseConnection {
-  constructor() {
-    this.db = null;
-    this.drizzle = null;
-    this.isInitialized = false;
-  }
+  db = null;
+  drizzle = null;
+  isInitialized = false;
 
   async initialize() {
     try {
@@ -82,7 +80,7 @@ class DatabaseConnection {
       // Get all SQL migration files
       const files = fs.readdirSync(migrationsDir)
         .filter(file => file.endsWith('.sql'))
-        .sort();
+        .sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
 
       for (const file of files) {
         const migrationName = path.basename(file, '.sql');

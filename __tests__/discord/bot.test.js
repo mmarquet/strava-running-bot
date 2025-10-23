@@ -52,6 +52,23 @@ jest.mock('../../src/utils/Logger', () => ({
   }
 }));
 
+// Helper functions to reduce nesting
+const getEventHandler = (mockClient, eventName) => {
+  const call = mockClient.on.mock.calls.find(c => c[0] === eventName);
+  return call ? call[1] : null;
+};
+
+const getOnceHandler = (mockClient, eventName) => {
+  const call = mockClient.once.mock.calls.find(c => c[0] === eventName);
+  return call ? call[1] : null;
+};
+
+const createMockInteraction = (overrides = {}) => ({
+  isChatInputCommand: () => false,
+  isAutocomplete: () => false,
+  ...overrides
+});
+
 describe('DiscordBot', () => {
   let discordBot;
   let mockActivityProcessor;
@@ -156,7 +173,7 @@ describe('DiscordBot', () => {
   describe('event handlers', () => {
     describe('ready event', () => {
       it('should log bot information and register commands', async () => {
-        const readyHandler = mockClient.once.mock.calls.find(call => call[0] === 'ready')[1];
+        const readyHandler = getOnceHandler(mockClient, 'ready');
         jest.spyOn(discordBot, 'registerCommands').mockResolvedValue();
 
         await readyHandler();
@@ -171,7 +188,7 @@ describe('DiscordBot', () => {
       });
 
       it('should handle registerCommands errors gracefully', async () => {
-        const readyHandler = mockClient.once.mock.calls.find(call => call[0] === 'ready')[1];
+        const readyHandler = getOnceHandler(mockClient, 'ready');
         const error = new Error('Command registration failed');
         jest.spyOn(discordBot, 'registerCommands').mockRejectedValue(error);
 
@@ -184,14 +201,13 @@ describe('DiscordBot', () => {
       let interactionHandler;
 
       beforeEach(() => {
-        interactionHandler = mockClient.on.mock.calls.find(call => call[0] === 'interactionCreate')[1];
+        interactionHandler = getEventHandler(mockClient, 'interactionCreate');
       });
 
       it('should handle chat input commands', async () => {
-        const mockInteraction = {
-          isChatInputCommand: () => true,
-          isAutocomplete: () => false
-        };
+        const mockInteraction = createMockInteraction({
+          isChatInputCommand: () => true
+        });
 
         await interactionHandler(mockInteraction);
 
@@ -199,10 +215,9 @@ describe('DiscordBot', () => {
       });
 
       it('should handle autocomplete interactions', async () => {
-        const mockInteraction = {
-          isChatInputCommand: () => false,
+        const mockInteraction = createMockInteraction({
           isAutocomplete: () => true
-        };
+        });
 
         await interactionHandler(mockInteraction);
 
@@ -210,10 +225,7 @@ describe('DiscordBot', () => {
       });
 
       it('should ignore other interaction types', async () => {
-        const mockInteraction = {
-          isChatInputCommand: () => false,
-          isAutocomplete: () => false
-        };
+        const mockInteraction = createMockInteraction();
 
         await interactionHandler(mockInteraction);
 
@@ -222,10 +234,9 @@ describe('DiscordBot', () => {
       });
 
       it('should handle command errors gracefully', async () => {
-        const mockInteraction = {
-          isChatInputCommand: () => true,
-          isAutocomplete: () => false
-        };
+        const mockInteraction = createMockInteraction({
+          isChatInputCommand: () => true
+        });
         const error = new Error('Command failed');
         mockCommands.handleCommand.mockRejectedValue(error);
 
@@ -234,10 +245,9 @@ describe('DiscordBot', () => {
       });
 
       it('should handle autocomplete errors gracefully', async () => {
-        const mockInteraction = {
-          isChatInputCommand: () => false,
+        const mockInteraction = createMockInteraction({
           isAutocomplete: () => true
-        };
+        });
         const error = new Error('Autocomplete failed');
         mockCommands.handleAutocomplete.mockRejectedValue(error);
 
@@ -247,7 +257,7 @@ describe('DiscordBot', () => {
 
     describe('error event', () => {
       it('should log Discord client errors', () => {
-        const errorHandler = mockClient.on.mock.calls.find(call => call[0] === 'error')[1];
+        const errorHandler = getEventHandler(mockClient, 'error');
         const error = new Error('WebSocket connection failed');
 
         errorHandler(error);

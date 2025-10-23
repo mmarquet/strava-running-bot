@@ -276,9 +276,9 @@ describe('RaceManager', () => {
 
   describe('getDaysUntilRace', () => {
     beforeEach(() => {
-      // Mock current date to April 1, 2025
+      // Mock current date to April 1, 2025 at noon UTC to avoid timezone issues
       jest.useFakeTimers();
-      jest.setSystemTime(new Date('2025-04-01T00:00:00.000Z'));
+      jest.setSystemTime(new Date('2025-04-01T12:00:00.000Z'));
     });
 
     afterEach(() => {
@@ -287,7 +287,7 @@ describe('RaceManager', () => {
 
     it('should calculate days until race correctly', () => {
       const days = raceManager.getDaysUntilRace('2025-04-21');
-      expect(days).toBe(21); // From April 1 to April 21 is 21 days (Math.ceil calculation)
+      expect(days).toBe(20); // From April 1 to April 21 is 20 days
     });
   });
 
@@ -452,6 +452,117 @@ describe('RaceManager', () => {
         total: 0,
         upcoming: 0
       });
+    });
+  });
+
+  describe('completeRace', () => {
+    it('should complete a race successfully', async () => {
+      const mockRace = {
+        id: 1,
+        member_athlete_id: mockMember.athleteId,
+        name: 'Boston Marathon',
+        race_date: '2025-04-21'
+      };
+
+      const completionData = {
+        finishTime: '3:30:00',
+        placement: 150
+      };
+
+      DatabaseManager.db.select().from().where().get.mockResolvedValue(mockRace);
+      DatabaseManager.getMemberByDiscordId.mockResolvedValue(mockMember);
+      DatabaseManager.updateRace.mockResolvedValue({ ...mockRace, status: 'completed' });
+
+      const result = await raceManager.completeRace(1, 'discord123', completionData);
+
+      expect(result.status).toBe('completed');
+      expect(DatabaseManager.updateRace).toHaveBeenCalled();
+    });
+
+    it('should throw error if race not found', async () => {
+      DatabaseManager.db.select().from().where().get.mockResolvedValue(null);
+
+      await expect(
+        raceManager.completeRace(999, 'discord123')
+      ).rejects.toThrow('Race not found');
+    });
+
+    it('should throw error if user does not own race', async () => {
+      const mockRace = {
+        id: 1,
+        member_athlete_id: 99999,
+        name: 'Boston Marathon'
+      };
+
+      DatabaseManager.db.select().from().where().get.mockResolvedValue(mockRace);
+      DatabaseManager.getMemberByDiscordId.mockResolvedValue(mockMember);
+
+      await expect(
+        raceManager.completeRace(1, 'discord123')
+      ).rejects.toThrow('You can only update your own races');
+    });
+  });
+
+  describe('cancelRace', () => {
+    it('should cancel a race successfully', async () => {
+      const mockRace = {
+        id: 1,
+        member_athlete_id: mockMember.athleteId,
+        name: 'Boston Marathon',
+        race_date: '2025-04-21'
+      };
+
+      DatabaseManager.db.select().from().where().get.mockResolvedValue(mockRace);
+      DatabaseManager.getMemberByDiscordId.mockResolvedValue(mockMember);
+      DatabaseManager.updateRace.mockResolvedValue({ ...mockRace, status: 'cancelled', notes: 'Injury' });
+
+      const result = await raceManager.cancelRace(1, 'discord123', 'Injury');
+
+      expect(result.status).toBe('cancelled');
+      // updateRace calls DatabaseManager.updateRace with only raceId and updates (no discordUserId)
+      expect(DatabaseManager.updateRace).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ status: 'cancelled', notes: 'Injury' })
+      );
+    });
+  });
+
+  describe('getStatusEmoji', () => {
+    it('should return correct emoji for each status', () => {
+      expect(raceManager.getStatusEmoji('registered')).toBe('📝');
+      expect(raceManager.getStatusEmoji('completed')).toBe('✅');
+      expect(raceManager.getStatusEmoji('cancelled')).toBe('❌');
+      expect(raceManager.getStatusEmoji('unknown')).toBe('❓');
+    });
+  });
+
+  describe('getWeeklyRaces', () => {
+    it('should return races for the current week', async () => {
+      const mockRaces = [
+        { id: 1, race_date: '2025-10-25', name: 'Weekend 5K' }
+      ];
+
+      DatabaseManager.getRacesByDateRange = jest.fn().mockResolvedValue(mockRaces);
+
+      const result = await raceManager.getWeeklyRaces();
+
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).toEqual(mockRaces);
+    });
+  });
+
+  describe('getMonthlyRaces', () => {
+    it('should return races for the current month', async () => {
+      const mockRaces = [
+        { id: 1, race_date: '2025-10-30', name: 'Halloween Run' }
+      ];
+
+      DatabaseManager.getRacesByDateRange = jest.fn().mockResolvedValue(mockRaces);
+
+      const result = await raceManager.getMonthlyRaces();
+
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).toEqual(mockRaces);
     });
   });
 });

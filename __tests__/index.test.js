@@ -495,7 +495,7 @@ describe('StravaRunningBot', () => {
   describe('memory and resource management', () => {
     it('should clean up timers on stop', async () => {
       config.server.nodeEnv = 'production';
-      const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+      jest.spyOn(globalThis, 'clearTimeout');
 
       await bot.start();
       

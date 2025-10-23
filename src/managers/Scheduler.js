@@ -12,6 +12,36 @@ class Scheduler {
   }
 
   /**
+   * Group races by date - Helper method to reduce duplication
+   */
+  groupRacesByDate(races) {
+    const racesByDate = {};
+    races.forEach(race => {
+      const date = race.race_date;
+      if (!racesByDate[date]) racesByDate[date] = [];
+      racesByDate[date].push(race);
+    });
+    return racesByDate;
+  }
+
+  /**
+   * Format race item text - Helper method to reduce duplication
+   */
+  formatRaceItem(race, showWeekday = false) {
+    const raceDate = new Date(race.race_date + 'T00:00:00');
+    const dateOptions = showWeekday 
+      ? { weekday: 'short', month: 'short', day: 'numeric' }
+      : { month: 'short', day: 'numeric' };
+    const dateStr = raceDate.toLocaleDateString('en-US', dateOptions);
+    
+    let raceText = `**${dateStr}**: ${race.name} - ${race.memberName}`;
+    if (race.distance) raceText += ` (${race.distance})`;
+    
+    const icon = race.race_type === 'trail' ? '🥾' : '🏃‍♂️';
+    return `${icon} ${raceText}`;
+  }
+
+  /**
    * Initialize the scheduler with cron jobs
    */
   async initialize(config) {
@@ -192,15 +222,10 @@ class Scheduler {
       }]);
     } else {
       // Group races by date
-      const racesByDate = {};
-      races.forEach(race => {
-        const date = race.race_date;
-        if (!racesByDate[date]) racesByDate[date] = [];
-        racesByDate[date].push(race);
-      });
+      const racesByDate = this.groupRacesByDate(races);
 
       // Sort dates and add fields
-      const sortedDates = Object.keys(racesByDate).sort();
+      const sortedDates = Object.keys(racesByDate).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
       
       for (const date of sortedDates) {
         const dayRaces = racesByDate[date];
@@ -217,13 +242,7 @@ class Scheduler {
         else if (daysUntil === 1) dayText += ' (Tomorrow)';
         else if (daysUntil > 0) dayText += ` (${daysUntil} days)`;
 
-        const raceList = dayRaces.map(race => {
-          let raceText = `🏃‍♂️ **${race.name}** - ${race.memberName}`;
-          if (race.distance) raceText += ` (${race.distance})`;
-          if (race.location) raceText += ` at ${race.location}`;
-          if (race.race_type === 'trail') raceText = raceText.replace('🏃‍♂️', '🥾');
-          return raceText;
-        }).join('\n');
+        const raceList = dayRaces.map(race => this.formatRaceItem(race, false)).join('\n');
 
         embed.addFields([{
           name: dayText,
@@ -265,21 +284,7 @@ class Scheduler {
         const weekRaces = racesByWeek[weekKey];
         const [weekStart, weekEnd] = weekKey.split(' - ');
         
-        const raceList = weekRaces.map(race => {
-          const raceDate = new Date(race.race_date + 'T00:00:00');
-          const dateStr = raceDate.toLocaleDateString('en-US', { 
-            weekday: 'short', 
-            month: 'short', 
-            day: 'numeric' 
-          });
-          
-          let raceText = `**${dateStr}**: ${race.name} - ${race.memberName}`;
-          if (race.distance) raceText += ` (${race.distance})`;
-          if (race.race_type === 'trail') raceText = '🥾 ' + raceText;
-          else raceText = '🏃‍♂️ ' + raceText;
-          
-          return raceText;
-        }).join('\n');
+        const raceList = weekRaces.map(race => this.formatRaceItem(race, true)).join('\n');
 
         embed.addFields([{
           name: `Week ${index + 1}: ${weekStart} - ${weekEnd}`,

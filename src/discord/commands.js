@@ -428,8 +428,8 @@ class DiscordCommands {
       // Load Discord user data from JSON fallback for missing guild cache
       let jsonMemberData = {};
       try {
-        const fs = require('fs').promises;
-        const path = require('path');
+        const fs = require('node:fs').promises;
+        const path = require('node:path');
         const jsonPath = path.join(__dirname, '../../data/data/members.json');
         const jsonData = await fs.readFile(jsonPath, 'utf8');
         const memberDataJson = JSON.parse(jsonData);
@@ -810,8 +810,8 @@ class DiscordCommands {
       // Load JSON member data for Discord name fallback
       let jsonMemberData = {};
       try {
-        const fs = require('fs').promises;
-        const path = require('path');
+        const fs = require('node:fs').promises;
+        const path = require('node:path');
         const jsonPath = path.join(__dirname, '../../data/data/members.json');
         const jsonData = await fs.readFile(jsonPath, 'utf8');
         const memberDataJson = JSON.parse(jsonData);
@@ -1307,7 +1307,7 @@ class DiscordCommands {
       });
 
       // Sort dates and add fields
-      const sortedDates = Object.keys(racesByDate).sort();
+      const sortedDates = Object.keys(racesByDate).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
       let fieldCount = 0;
 
       for (const date of sortedDates) {

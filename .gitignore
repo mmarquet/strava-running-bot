@@ -78,6 +78,7 @@ Code_Review.md
 .scannerwork/
 sonar-project.properties.local
 sonar-report.txt
+.sonarlint/
 
 # Docker volumes
 volumes/

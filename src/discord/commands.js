@@ -23,6 +23,22 @@ class DiscordCommands {
         )
         .addSubcommand(subcommand =>
           subcommand
+            .setName('inactive')
+            .setDescription('List inactive members and notify them to reconnect')
+            .addStringOption(option =>
+              option
+                .setName('notify')
+                .setDescription('How to notify inactive members')
+                .addChoices(
+                  { name: 'No notification', value: 'none' },
+                  { name: 'Send DM (private message)', value: 'dm' },
+                  { name: 'Mention in channel', value: 'channel' }
+                )
+                .setRequired(false)
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
             .setName('remove')
             .setDescription('Remove a team member')
             .addStringOption(option =>
@@ -141,6 +157,9 @@ class DiscordCommands {
     case 'list':
       await this.listMembers(interaction);
       break;
+    case 'inactive':
+      await this.listInactiveMembers(interaction, options);
+      break;
     case 'remove':
       await this.removeMember(interaction, options);
       break;
@@ -206,6 +225,175 @@ class DiscordCommands {
         ephemeral: true
       });
     }
+  }
+
+  // List inactive members and optionally notify them
+  async listInactiveMembers(interaction, options) {
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const notifyOption = options.getString('notify') || 'none';
+      const inactiveMembers = await this.activityProcessor.memberManager.getInactiveMembers();
+
+      if (inactiveMembers.length === 0) {
+        await interaction.editReply({
+          content: '✅ All team members are active!',
+          ephemeral: true
+        });
+        return;
+      }
+
+      // Display the list of inactive members
+      await this._displayInactiveMembersList(interaction, inactiveMembers);
+
+      // Handle notifications based on option
+      if (notifyOption === 'dm') {
+        await this._sendDMNotifications(interaction, inactiveMembers);
+      } else if (notifyOption === 'channel') {
+        await this._sendChannelNotification(interaction, inactiveMembers);
+      }
+
+    } catch (error) {
+      logger.discord.error('Error listing inactive members', {
+        user: interaction.user.tag,
+        error: error.message
+      });
+      await interaction.editReply({
+        content: '❌ Failed to retrieve inactive member list.',
+        ephemeral: true
+      });
+    }
+  }
+
+  /**
+   * Display the list of inactive members as an embed
+   * @private
+   */
+  async _displayInactiveMembersList(interaction, inactiveMembers) {
+    const embed = new EmbedBuilder()
+      .setTitle('🔴 Inactive Members')
+      .setColor('#FF4444')
+      .setDescription(`Found ${inactiveMembers.length} inactive member(s) who need to reconnect`)
+      .setTimestamp();
+
+    for (const member of inactiveMembers) {
+      const user = interaction.guild?.members.cache.get(member.discordUserId);
+      const displayName = user ? `<@${member.discordUserId}>` : `User ID: ${member.discordUserId}`;
+      const memberName = member.discordUser ? member.discordUser.displayName : `${member.athlete.firstname} ${member.athlete.lastname}`;
+      const tokenErrorDate = member.tokenError ? new Date(member.tokenError.timestamp).toLocaleDateString() : 'Unknown';
+      
+      embed.addFields([{
+        name: memberName,
+        value: `Discord: ${displayName}\nInactive since: ${tokenErrorDate}\nReason: ${member.tokenError?.message || 'Token expired'}`,
+        inline: false
+      }]);
+    }
+
+    embed.addFields([{
+      name: '📝 How to reconnect',
+      value: 'Use the `/register` command to reconnect your Strava account with fresh authentication.',
+      inline: false
+    }]);
+
+    await interaction.editReply({ embeds: [embed] });
+  }
+
+  /**
+   * Send DM notifications to inactive members
+   * @private
+   */
+  async _sendDMNotifications(interaction, inactiveMembers) {
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const member of inactiveMembers) {
+      try {
+        const user = await interaction.client.users.fetch(member.discordUserId);
+        if (user) {
+          const dmEmbed = this._createReconnectionEmbed();
+          await user.send({ embeds: [dmEmbed] });
+          successCount++;
+          logger.discord.info('Sent reconnection DM to inactive member', {
+            discordUserId: member.discordUserId,
+            memberName: member.discordUser?.displayName || member.athlete.firstname
+          });
+        }
+      } catch (dmError) {
+        failCount++;
+        logger.discord.warn('Failed to send DM to inactive member', {
+          discordUserId: member.discordUserId,
+          error: dmError.message
+        });
+      }
+    }
+
+    // Send follow-up message about DM results
+    const notifyMessage = `📨 DM Notification Results:\n✅ Sent: ${successCount}\n❌ Failed: ${failCount}${failCount > 0 ? ' (user may have DMs disabled)' : ''}`;
+    await interaction.followUp({ content: notifyMessage, ephemeral: true });
+  }
+
+  /**
+   * Send channel notification mentioning inactive members
+   * @private
+   */
+  async _sendChannelNotification(interaction, inactiveMembers) {
+    const mentions = inactiveMembers.map(m => `<@${m.discordUserId}>`).join(' ');
+    
+    const channelEmbed = new EmbedBuilder()
+      .setTitle('🔄 Action Required: Reconnect Your Strava Account')
+      .setColor('#FC4C02')
+      .setDescription(`${mentions}\n\nYour Strava connection has expired and needs to be refreshed.`)
+      .addFields([
+        {
+          name: '❓ Why did this happen?',
+          value: 'Your Strava authentication token has expired or was revoked. This is normal and happens automatically for security reasons.',
+          inline: false
+        },
+        {
+          name: '✅ How to fix it (takes 1 minute)',
+          value: 'Simply use the `/register` command to reconnect your Strava account. This will restore your activity posting!',
+          inline: false
+        }
+      ])
+      .setFooter({ text: 'Strava Running Bot' })
+      .setTimestamp();
+
+    // Post in the same channel
+    await interaction.channel.send({ embeds: [channelEmbed] });
+    await interaction.followUp({ 
+      content: `✅ Posted notification in channel mentioning ${inactiveMembers.length} inactive member(s).`, 
+      ephemeral: true 
+    });
+    
+    logger.discord.info('Posted channel notification for inactive members', {
+      channel: interaction.channel.id,
+      inactiveMemberCount: inactiveMembers.length
+    });
+  }
+
+  /**
+   * Create the reconnection embed for DMs or channel notifications
+   * @private
+   */
+  _createReconnectionEmbed() {
+    return new EmbedBuilder()
+      .setTitle('🔄 Reconnect Your Strava Account')
+      .setColor('#FC4C02')
+      .setDescription('Your Strava connection has expired and needs to be refreshed.')
+      .addFields([
+        {
+          name: '❓ Why did this happen?',
+          value: 'Your Strava authentication token has expired or was revoked. This happens automatically after a period of time for security reasons.',
+          inline: false
+        },
+        {
+          name: '✅ How to fix it',
+          value: `Go to the Discord server and use the \`/register\` command to reconnect your Strava account.\n\nThis will only take a minute and will restore your activity posting!`,
+          inline: false
+        }
+      ])
+      .setFooter({ text: 'Strava Running Bot' })
+      .setTimestamp();
   }
 
   // Remove a member

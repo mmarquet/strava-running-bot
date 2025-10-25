@@ -26,44 +26,30 @@ class MemberManager {
       const inconsistencies = [];
       const duplicateDiscordUsers = new Map();
       const duplicateAthletes = new Map();
+      const decryptionErrors = [];
       
       // Decrypt and restore member data with integrity checks
       for (const member of memberData.members) {
-        const decryptedMember = this.decryptMemberData(member);
-        const athleteId = decryptedMember.athlete.id.toString();
-        const discordUserId = decryptedMember.discordUserId;
-        
-        // Check for duplicate athlete IDs
-        if (this.members.has(athleteId)) {
-          duplicateAthletes.set(athleteId, (duplicateAthletes.get(athleteId) || 0) + 1);
-          inconsistencies.push(`Duplicate athlete ID ${athleteId} found`);
-          continue; // Skip this duplicate
-        }
-        
-        // Check for duplicate Discord user IDs
-        if (discordUserId && this.discordToStrava.has(discordUserId)) {
-          duplicateDiscordUsers.set(discordUserId, (duplicateDiscordUsers.get(discordUserId) || 0) + 1);
-          inconsistencies.push(`Duplicate Discord user ID ${discordUserId} found - athlete ${athleteId} skipped`);
-          continue; // Skip this duplicate
-        }
-        
-        // Add to maps
-        this.members.set(athleteId, decryptedMember);
-        
-        if (discordUserId) {
-          this.discordToStrava.set(discordUserId, athleteId);
-        } else {
-          inconsistencies.push(`Member ${athleteId} has no Discord user ID`);
-        }
+        this._loadSingleMember(member, inconsistencies, duplicateDiscordUsers, duplicateAthletes, decryptionErrors);
       }
       
       // Log data integrity results
-      if (inconsistencies.length > 0) {
+      if (inconsistencies.length > 0 || decryptionErrors.length > 0) {
         logger.member.warn('Data integrity issues detected during load', {
           inconsistencies,
           duplicateDiscordUsers: Object.fromEntries(duplicateDiscordUsers),
-          duplicateAthletes: Object.fromEntries(duplicateAthletes)
+          duplicateAthletes: Object.fromEntries(duplicateAthletes),
+          decryptionErrors: decryptionErrors.length > 0 ? decryptionErrors : undefined
         });
+        
+        if (decryptionErrors.length > 0) {
+          logger.member.error(`⚠️  ${decryptionErrors.length} member(s) could not be decrypted - they will need to re-register`, {
+            affectedMembers: decryptionErrors.map(e => ({ 
+              discordUserId: e.discordUserId, 
+              athleteId: e.athleteId 
+            }))
+          });
+        }
         
         // Save cleaned data back to storage
         await this.saveMembers();
@@ -71,6 +57,13 @@ class MemberManager {
       }
       
       // Verify map consistency
+      logger.member.debug('Pre-consistency check state', {
+        totalMembers: this.members.size,
+        activeMembers: Array.from(this.members.values()).filter(m => m.isActive).length,
+        inactiveMembers: Array.from(this.members.values()).filter(m => !m.isActive).length,
+        discordMappings: this.discordToStrava.size
+      });
+      
       const mapConsistencyCheck = this.verifyMapConsistency();
       if (!mapConsistencyCheck.isConsistent) {
         logger.member.error('Map consistency check failed after load', mapConsistencyCheck);
@@ -88,9 +81,66 @@ class MemberManager {
         logger.member.info('No existing member data found, starting fresh');
         await this.ensureDataDirectory();
       } else {
-        logger.member.error('Error loading members', error);
+        logger.member.error('Error loading members', {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+          code: error.code
+        });
         throw error; // Re-throw to prevent bot startup with corrupted data
       }
+    }
+  }
+
+  /**
+   * Load and validate a single member during loadMembers
+   * @private
+   */
+  _loadSingleMember(member, inconsistencies, duplicateDiscordUsers, duplicateAthletes, decryptionErrors) {
+    let decryptedMember;
+    try {
+      decryptedMember = this.decryptMemberData(member);
+    } catch (decryptError) {
+      // Log decryption error and skip this member
+      const athleteInfo = member.athlete ? `${member.athlete.firstname} ${member.athlete.lastname} (ID: ${member.athlete.id})` : 'Unknown';
+      logger.member.error('Failed to decrypt member data, skipping', {
+        athlete: athleteInfo,
+        discordUserId: member.discordUserId,
+        error: decryptError.message
+      });
+      decryptionErrors.push({
+        discordUserId: member.discordUserId,
+        athleteId: member.athlete?.id,
+        error: decryptError.message
+      });
+      return; // Skip this member
+    }
+    
+    const athleteId = decryptedMember.athlete.id.toString();
+    const discordUserId = decryptedMember.discordUserId;
+    
+    // Check for duplicate athlete IDs
+    if (this.members.has(athleteId)) {
+      duplicateAthletes.set(athleteId, (duplicateAthletes.get(athleteId) || 0) + 1);
+      inconsistencies.push(`Duplicate athlete ID ${athleteId} found`);
+      return; // Skip this duplicate
+    }
+    
+    // Check for duplicate Discord user IDs
+    if (discordUserId && this.discordToStrava.has(discordUserId)) {
+      duplicateDiscordUsers.set(discordUserId, (duplicateDiscordUsers.get(discordUserId) || 0) + 1);
+      inconsistencies.push(`Duplicate Discord user ID ${discordUserId} found - athlete ${athleteId} skipped`);
+      return; // Skip this duplicate
+    }
+    
+    // Add to maps
+    this.members.set(athleteId, decryptedMember);
+    
+    // Only add active members to Discord mapping
+    if (discordUserId && decryptedMember.isActive !== false) {
+      this.discordToStrava.set(discordUserId, athleteId);
+    } else if (!discordUserId) {
+      inconsistencies.push(`Member ${athleteId} has no Discord user ID`);
     }
   }
 
@@ -143,6 +193,24 @@ class MemberManager {
   async registerMember(discordUserId, athlete, tokenData, discordUser = null) {
     const athleteId = athlete.id.toString();
     
+    // Validate no conflicts with existing registrations
+    this._validateNewRegistration(discordUserId, athleteId);
+    
+    // Check if we need to reactivate an existing inactive member
+    const existingMemberByAthlete = this.members.get(athleteId);
+    if (existingMemberByAthlete) {
+      return await this._handleExistingMember(existingMemberByAthlete, athleteId, discordUserId, athlete, tokenData, discordUser);
+    }
+    
+    // Create new member registration
+    return await this._createNewMember(discordUserId, athlete, tokenData, discordUser);
+  }
+
+  /**
+   * Validate that a new registration doesn't conflict with existing data
+   * @private
+   */
+  _validateNewRegistration(discordUserId, athleteId) {
     // Check for existing Discord user registration to prevent duplicates
     const existingMemberByDiscord = this.discordToStrava.get(discordUserId);
     if (existingMemberByDiscord) {
@@ -156,17 +224,84 @@ class MemberManager {
         throw new Error(`Discord user ${discordUserId} is already registered to athlete ${existingMemberByDiscord}`);
       }
     }
-    
-    // Check for existing athlete registration
-    const existingMemberByAthlete = this.members.get(athleteId);
-    if (existingMemberByAthlete?.isActive) {
+  }
+
+  /**
+   * Handle registration of existing member (reactivation or error)
+   * @private
+   */
+  async _handleExistingMember(existingMember, athleteId, discordUserId, athlete, tokenData, discordUser) {
+    if (existingMember.isActive) {
       logger.member.warn('Attempted registration of existing active athlete', {
         athleteId,
-        existingDiscordId: existingMemberByAthlete.discordUserId,
+        existingDiscordId: existingMember.discordUserId,
         newDiscordId: discordUserId
       });
-      throw new Error(`Athlete ${athleteId} is already registered to Discord user ${existingMemberByAthlete.discordUserId}`);
+      throw new Error(`Athlete ${athleteId} is already registered to Discord user ${existingMember.discordUserId}`);
     }
+    
+    // If member exists but is inactive, reactivate with new tokens
+    if (!existingMember.isActive && existingMember.discordUserId === discordUserId) {
+      return await this._reactivateMember(existingMember, athleteId, discordUserId, athlete, tokenData, discordUser);
+    }
+    
+    throw new Error(`Athlete ${athleteId} exists but registration conditions not met`);
+  }
+
+  /**
+   * Reactivate an inactive member with new tokens
+   * @private
+   */
+  async _reactivateMember(existingMember, athleteId, discordUserId, athlete, tokenData, discordUser) {
+    logger.member.info('Reactivating existing inactive member with new tokens', {
+      athleteId,
+      discordUserId
+    });
+    
+    // Update tokens and reactivate
+    existingMember.tokens = {
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      expires_at: tokenData.expires_at,
+      expires_in: tokenData.expires_in,
+      token_type: tokenData.token_type
+    };
+    existingMember.lastTokenRefresh = new Date().toISOString();
+    existingMember.isActive = true;
+    existingMember.reactivatedAt = new Date().toISOString();
+    delete existingMember.tokenError;
+    delete existingMember.deactivatedAt;
+    
+    // Update Discord user info if provided
+    if (discordUser) {
+      existingMember.discordUser = {
+        username: discordUser.username,
+        displayName: discordUser.displayName || discordUser.globalName || discordUser.username,
+        discriminator: discordUser.discriminator,
+        avatar: discordUser.avatar,
+        avatarURL: discordUser.displayAvatarURL ? discordUser.displayAvatarURL() : null
+      };
+    }
+    
+    // Re-add to Discord mapping
+    this.discordToStrava.set(discordUserId, athleteId);
+    await this.saveMembers();
+    
+    const displayName = discordUser ? discordUser.displayName || discordUser.username : discordUserId;
+    logger.memberAction('REACTIVATED', `${athlete.firstname} ${athlete.lastname}`, discordUserId, athleteId, {
+      displayName,
+      reactivatedAt: existingMember.reactivatedAt
+    });
+    
+    return existingMember;
+  }
+
+  /**
+   * Create a new member registration
+   * @private
+   */
+  async _createNewMember(discordUserId, athlete, tokenData, discordUser) {
+    const athleteId = athlete.id.toString();
     
     const member = {
       discordUserId: discordUserId,
@@ -247,8 +382,19 @@ class MemberManager {
   }
 
   // Get all active members
+  // Get all active members
   async getAllMembers() {
     return Array.from(this.members.values()).filter(member => member.isActive);
+  }
+
+  // Get all members including inactive
+  async getAllMembersIncludingInactive() {
+    return Array.from(this.members.values());
+  }
+
+  // Get only inactive members
+  async getInactiveMembers() {
+    return Array.from(this.members.values()).filter(member => !member.isActive);
   }
 
   // Get member count
@@ -308,12 +454,17 @@ class MemberManager {
         timestamp: new Date().toISOString()
       });
       
-      // If refresh fails, mark member as inactive
+      // If refresh fails, mark member as inactive and remove Discord mapping
       member.isActive = false;
       member.tokenError = {
         message: error.message,
         timestamp: new Date().toISOString()
       };
+      
+      // Remove from Discord mapping to maintain consistency
+      if (member.discordUserId) {
+        this.discordToStrava.delete(member.discordUserId);
+      }
       
       await this.saveMembers();
       return null;

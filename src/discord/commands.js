@@ -249,7 +249,7 @@ class DiscordCommands {
         .setDescription(`Found ${inactiveMembers.length} inactive member(s) who need to reconnect`)
         .setTimestamp();
 
-      inactiveMembers.forEach((member, _index) => {
+      for (const member of inactiveMembers) {
         const user = interaction.guild?.members.cache.get(member.discordUserId);
         const displayName = user ? `<@${member.discordUserId}>` : `User ID: ${member.discordUserId}`;
         const memberName = member.discordUser ? member.discordUser.displayName : `${member.athlete.firstname} ${member.athlete.lastname}`;
@@ -260,7 +260,7 @@ class DiscordCommands {
           value: `Discord: ${displayName}\nInactive since: ${tokenErrorDate}\nReason: ${member.tokenError?.message || 'Token expired'}`,
           inline: false
         }]);
-      });
+      }
 
       embed.addFields([{
         name: '📝 How to reconnect',

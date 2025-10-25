@@ -26,10 +26,29 @@ class MemberManager {
       const inconsistencies = [];
       const duplicateDiscordUsers = new Map();
       const duplicateAthletes = new Map();
+      const decryptionErrors = [];
       
       // Decrypt and restore member data with integrity checks
       for (const member of memberData.members) {
-        const decryptedMember = this.decryptMemberData(member);
+        let decryptedMember;
+        try {
+          decryptedMember = this.decryptMemberData(member);
+        } catch (decryptError) {
+          // Log decryption error and skip this member
+          const athleteInfo = member.athlete ? `${member.athlete.firstname} ${member.athlete.lastname} (ID: ${member.athlete.id})` : 'Unknown';
+          logger.member.error('Failed to decrypt member data, skipping', {
+            athlete: athleteInfo,
+            discordUserId: member.discordUserId,
+            error: decryptError.message
+          });
+          decryptionErrors.push({
+            discordUserId: member.discordUserId,
+            athleteId: member.athlete?.id,
+            error: decryptError.message
+          });
+          continue; // Skip this member
+        }
+        
         const athleteId = decryptedMember.athlete.id.toString();
         const discordUserId = decryptedMember.discordUserId;
         
@@ -50,20 +69,31 @@ class MemberManager {
         // Add to maps
         this.members.set(athleteId, decryptedMember);
         
-        if (discordUserId) {
+        // Only add active members to Discord mapping
+        if (discordUserId && decryptedMember.isActive !== false) {
           this.discordToStrava.set(discordUserId, athleteId);
-        } else {
+        } else if (!discordUserId) {
           inconsistencies.push(`Member ${athleteId} has no Discord user ID`);
         }
       }
       
       // Log data integrity results
-      if (inconsistencies.length > 0) {
+      if (inconsistencies.length > 0 || decryptionErrors.length > 0) {
         logger.member.warn('Data integrity issues detected during load', {
           inconsistencies,
           duplicateDiscordUsers: Object.fromEntries(duplicateDiscordUsers),
-          duplicateAthletes: Object.fromEntries(duplicateAthletes)
+          duplicateAthletes: Object.fromEntries(duplicateAthletes),
+          decryptionErrors: decryptionErrors.length > 0 ? decryptionErrors : undefined
         });
+        
+        if (decryptionErrors.length > 0) {
+          logger.member.error(`⚠️  ${decryptionErrors.length} member(s) could not be decrypted - they will need to re-register`, {
+            affectedMembers: decryptionErrors.map(e => ({ 
+              discordUserId: e.discordUserId, 
+              athleteId: e.athleteId 
+            }))
+          });
+        }
         
         // Save cleaned data back to storage
         await this.saveMembers();
@@ -71,6 +101,13 @@ class MemberManager {
       }
       
       // Verify map consistency
+      logger.member.debug('Pre-consistency check state', {
+        totalMembers: this.members.size,
+        activeMembers: Array.from(this.members.values()).filter(m => m.isActive).length,
+        inactiveMembers: Array.from(this.members.values()).filter(m => !m.isActive).length,
+        discordMappings: this.discordToStrava.size
+      });
+      
       const mapConsistencyCheck = this.verifyMapConsistency();
       if (!mapConsistencyCheck.isConsistent) {
         logger.member.error('Map consistency check failed after load', mapConsistencyCheck);
@@ -88,7 +125,12 @@ class MemberManager {
         logger.member.info('No existing member data found, starting fresh');
         await this.ensureDataDirectory();
       } else {
-        logger.member.error('Error loading members', error);
+        logger.member.error('Error loading members', {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+          code: error.code
+        });
         throw error; // Re-throw to prevent bot startup with corrupted data
       }
     }
@@ -159,13 +201,60 @@ class MemberManager {
     
     // Check for existing athlete registration
     const existingMemberByAthlete = this.members.get(athleteId);
-    if (existingMemberByAthlete?.isActive) {
-      logger.member.warn('Attempted registration of existing active athlete', {
-        athleteId,
-        existingDiscordId: existingMemberByAthlete.discordUserId,
-        newDiscordId: discordUserId
-      });
-      throw new Error(`Athlete ${athleteId} is already registered to Discord user ${existingMemberByAthlete.discordUserId}`);
+    if (existingMemberByAthlete) {
+      if (existingMemberByAthlete.isActive) {
+        logger.member.warn('Attempted registration of existing active athlete', {
+          athleteId,
+          existingDiscordId: existingMemberByAthlete.discordUserId,
+          newDiscordId: discordUserId
+        });
+        throw new Error(`Athlete ${athleteId} is already registered to Discord user ${existingMemberByAthlete.discordUserId}`);
+      }
+      
+      // If member exists but is inactive, reactivate with new tokens
+      if (!existingMemberByAthlete.isActive && existingMemberByAthlete.discordUserId === discordUserId) {
+        logger.member.info('Reactivating existing inactive member with new tokens', {
+          athleteId,
+          discordUserId
+        });
+        
+        // Update tokens and reactivate
+        existingMemberByAthlete.tokens = {
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token,
+          expires_at: tokenData.expires_at,
+          expires_in: tokenData.expires_in,
+          token_type: tokenData.token_type
+        };
+        existingMemberByAthlete.lastTokenRefresh = new Date().toISOString();
+        existingMemberByAthlete.isActive = true;
+        existingMemberByAthlete.reactivatedAt = new Date().toISOString();
+        delete existingMemberByAthlete.tokenError;
+        delete existingMemberByAthlete.deactivatedAt;
+        
+        // Update Discord user info if provided
+        if (discordUser) {
+          existingMemberByAthlete.discordUser = {
+            username: discordUser.username,
+            displayName: discordUser.displayName || discordUser.globalName || discordUser.username,
+            discriminator: discordUser.discriminator,
+            avatar: discordUser.avatar,
+            avatarURL: discordUser.displayAvatarURL ? discordUser.displayAvatarURL() : null
+          };
+        }
+        
+        // Re-add to Discord mapping
+        this.discordToStrava.set(discordUserId, athleteId);
+        await this.saveMembers();
+        
+        const displayName = discordUser ? discordUser.displayName || discordUser.username : discordUserId;
+        logger.memberAction('REACTIVATED', `${athlete.firstname} ${athlete.lastname}`, discordUserId, athleteId, {
+          displayName,
+          reactivatedAt: existingMemberByAthlete.reactivatedAt
+        });
+        
+        return existingMemberByAthlete;
+      }
     }
     
     const member = {
@@ -247,8 +336,19 @@ class MemberManager {
   }
 
   // Get all active members
+  // Get all active members
   async getAllMembers() {
     return Array.from(this.members.values()).filter(member => member.isActive);
+  }
+
+  // Get all members including inactive
+  async getAllMembersIncludingInactive() {
+    return Array.from(this.members.values());
+  }
+
+  // Get only inactive members
+  async getInactiveMembers() {
+    return Array.from(this.members.values()).filter(member => !member.isActive);
   }
 
   // Get member count
@@ -308,12 +408,17 @@ class MemberManager {
         timestamp: new Date().toISOString()
       });
       
-      // If refresh fails, mark member as inactive
+      // If refresh fails, mark member as inactive and remove Discord mapping
       member.isActive = false;
       member.tokenError = {
         message: error.message,
         timestamp: new Date().toISOString()
       };
+      
+      // Remove from Discord mapping to maintain consistency
+      if (member.discordUserId) {
+        this.discordToStrava.delete(member.discordUserId);
+      }
       
       await this.saveMembers();
       return null;

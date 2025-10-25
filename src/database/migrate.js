@@ -20,7 +20,7 @@ async function migrate() {
 
 // Run migration if called directly
 if (require.main === module) {
-  migrate();
+  void migrate(); // Use void to satisfy SonarQube's preference for not having floating promises
 }
 
 module.exports = migrate;

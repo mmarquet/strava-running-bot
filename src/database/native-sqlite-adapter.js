@@ -15,7 +15,7 @@ class NativeSQLiteDatabase {
     
     return {
       run: (...params) => {
-        const info = stmt.run(...params);
+        stmt.run(...params);
         // Return better-sqlite3 compatible format
         return {
           changes: this.db.totalChanges,

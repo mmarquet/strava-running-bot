@@ -435,9 +435,9 @@ class DiscordCommands {
         const memberDataJson = JSON.parse(jsonData);
         
         // Create lookup by discordUserId
-        memberDataJson.members.forEach(jsonMember => {
+        for (const jsonMember of memberDataJson.members) {
           jsonMemberData[jsonMember.discordUserId] = jsonMember.discordUser;
-        });
+        }
       } catch (error) {
         logger.discord.debug('Could not load JSON member data for fallback', { error: error.message });
       }
@@ -459,13 +459,13 @@ class DiscordCommands {
       // Group members into chunks of 10 for better display
       const memberChunks = DiscordUtils.chunkArray(members, 10);
       
-      memberChunks[0].forEach((member, _index) => {
+      for (const member of memberChunks[0]) {
         const user = interaction.guild?.members.cache.get(member.discordUserId);
         const displayName = user ? `<@${member.discordUserId}>` : `User ID: ${member.discordUserId}`;
         
         // Get Discord name with multiple fallbacks
         let discordName;
-        if (user && user.displayName) {
+        if (user?.displayName) {
           // First: Try guild member cache
           discordName = user.displayName;
         } else if (jsonMemberData[member.discordUserId]) {
@@ -487,7 +487,7 @@ class DiscordCommands {
           value: `Strava: ${stravaName}\nDiscord: ${displayName}\nRegistered: ${new Date(member.registeredAt).toLocaleDateString()}\nStatus: ${member.isActive ? '🟢 Active' : '🔴 Inactive'}`,
           inline: true
         }]);
-      });
+      }
 
       if (memberChunks.length > 1) {
         embed.setFooter({ text: `Showing first 10 of ${members.length} members` });
@@ -817,9 +817,9 @@ class DiscordCommands {
         const memberDataJson = JSON.parse(jsonData);
         
         // Create lookup by discordUserId
-        memberDataJson.members.forEach(jsonMember => {
+        for (const jsonMember of memberDataJson.members) {
           jsonMemberData[jsonMember.discordUserId] = jsonMember.discordUser;
-        });
+        }
       } catch (error) {
         logger.discord.debug('Could not load JSON member data for fallback', { error: error.message });
       }
@@ -827,7 +827,7 @@ class DiscordCommands {
       // Helper function to get Discord name with fallbacks
       const getDiscordName = (member) => {
         const user = interaction.guild?.members.cache.get(member.discordUserId);
-        if (user && user.displayName) {
+        if (user?.displayName) {
           return user.displayName;
         } else if (jsonMemberData[member.discordUserId]) {
           return jsonMemberData[member.discordUserId].displayName || jsonMemberData[member.discordUserId].username;
@@ -1028,6 +1028,39 @@ class DiscordCommands {
     }
   }
 
+  // Helper: Process distance for race based on type and user input
+  _processRaceDistance(raceType, distancePreset, customDistance) {
+    let finalDistance = null;
+    let distanceKm = null;
+    
+    if (raceType === 'road') {
+      if (distancePreset && distancePreset !== 'other') {
+        // Use preset distance
+        const km = Number.parseFloat(distancePreset);
+        finalDistance = this.formatDistanceDisplay(km);
+        distanceKm = km.toString();
+      } else if (distancePreset === 'other' && customDistance) {
+        // Use custom distance for "other" road race
+        const km = Number.parseFloat(customDistance.replaceAll(/[^\d.]/g, ''));
+        if (Number.isNaN(km) || km <= 0) {
+          throw new Error('Custom distance must be a valid positive number');
+        }
+        finalDistance = `${km}km`;
+        distanceKm = km.toString();
+      }
+    } else if (raceType === 'trail' && customDistance) {
+      // Trail races always use custom distance
+      const km = Number.parseFloat(customDistance.replaceAll(/[^\d.]/g, ''));
+      if (Number.isNaN(km) || km <= 0) {
+        throw new Error('Distance must be a valid positive number for trail races');
+      }
+      finalDistance = `${km}km`;
+      distanceKm = km.toString();
+    }
+    
+    return { finalDistance, distanceKm };
+  }
+
   // Add a new race
   async addRace(interaction, options) {
     await interaction.deferReply({ ephemeral: false });
@@ -1038,33 +1071,7 @@ class DiscordCommands {
       const customDistance = options.getString('custom_distance');
       
       // Process distance based on race type and user input
-      let finalDistance = null;
-      let distanceKm = null;
-      
-      if (raceType === 'road') {
-        if (distancePreset && distancePreset !== 'other') {
-          // Use preset distance
-          const km = parseFloat(distancePreset);
-          finalDistance = this.formatDistanceDisplay(km);
-          distanceKm = km.toString();
-        } else if (distancePreset === 'other' && customDistance) {
-          // Use custom distance for "other" road race
-          const km = parseFloat(customDistance.replace(/[^\d.]/g, ''));
-          if (isNaN(km) || km <= 0) {
-            throw new Error('Custom distance must be a valid positive number');
-          }
-          finalDistance = `${km}km`;
-          distanceKm = km.toString();
-        }
-      } else if (raceType === 'trail' && customDistance) {
-        // Trail races always use custom distance
-        const km = parseFloat(customDistance.replace(/[^\d.]/g, ''));
-        if (isNaN(km) || km <= 0) {
-          throw new Error('Distance must be a valid positive number for trail races');
-        }
-        finalDistance = `${km}km`;
-        distanceKm = km.toString();
-      }
+      const { finalDistance, distanceKm } = this._processRaceDistance(raceType, distancePreset, customDistance);
 
       const raceData = {
         name: options.getString('name'),
@@ -1134,8 +1141,9 @@ class DiscordCommands {
         return;
       }
 
+      const statusSuffix = status ? ` (${status})` : '';
       const embed = new EmbedBuilder()
-        .setTitle(`🏃 Your Races${status ? ` (${status})` : ''}`)
+        .setTitle(`🏃 Your Races${statusSuffix}`)
         .setColor('#FC4C02')
         .setDescription(`Found ${races.length} race${races.length === 1 ? '' : 's'}`)
         .setTimestamp();
@@ -1143,13 +1151,13 @@ class DiscordCommands {
       // Group races into chunks of 5 for better display
       const raceChunks = DiscordUtils.chunkArray(races, 5);
       
-      raceChunks[0].forEach((race) => {
+      for (const race of raceChunks[0]) {
         embed.addFields([{
           name: `#${race.id} - ${race.name}`,
           value: this.raceManager.formatRaceDisplay(race),
           inline: false
         }]);
-      });
+      }
 
       if (raceChunks.length > 1) {
         embed.setFooter({ text: `Showing first 5 of ${races.length} races` });
@@ -1300,11 +1308,11 @@ class DiscordCommands {
 
       // Group by date and show races
       const racesByDate = {};
-      racesWithMembers.forEach(race => {
+      for (const race of racesWithMembers) {
         const date = race.race_date;
         if (!racesByDate[date]) racesByDate[date] = [];
         racesByDate[date].push(race);
-      });
+      }
 
       // Sort dates and add fields
       const sortedDates = Object.keys(racesByDate).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
@@ -1393,8 +1401,9 @@ class DiscordCommands {
         })
       );
 
+      const statusSuffix = status ? ` (${status})` : '';
       const embed = new EmbedBuilder()
-        .setTitle(`🏃 Team Races${status ? ` (${status})` : ''}`)
+        .setTitle(`🏃 Team Races${statusSuffix}`)
         .setColor('#FC4C02')
         .setDescription(`Found ${races.length} race${races.length === 1 ? '' : 's'}`)
         .setTimestamp();
@@ -1402,14 +1411,19 @@ class DiscordCommands {
       // Group races into chunks of 10 for better display
       const raceChunks = DiscordUtils.chunkArray(racesWithMembers, 10);
       
-      raceChunks[0].forEach((race) => {
+      for (const race of raceChunks[0]) {
         const raceDate = new Date(race.race_date + 'T00:00:00').toLocaleDateString();
+        const distanceInfo = race.distance ? ` • 📏 ${race.distance}` : '';
+        const locationInfo = race.location ? ` • 📍 ${race.location}` : '';
+        const statusEmoji = this.raceManager.getStatusEmoji(race.status);
+        const statusText = race.status.toUpperCase();
+        
         embed.addFields([{
           name: `#${race.id} - ${race.name} (${race.memberName})`,
-          value: `📅 ${raceDate}${race.distance ? ` • 📏 ${race.distance}` : ''}${race.location ? ` • 📍 ${race.location}` : ''}\n${this.raceManager.getStatusEmoji(race.status)} ${race.status.toUpperCase()}`,
+          value: `📅 ${raceDate}${distanceInfo}${locationInfo}\n${statusEmoji} ${statusText}`,
           inline: true
         }]);
-      });
+      }
 
       if (raceChunks.length > 1) {
         embed.setFooter({ text: `Showing first 10 of ${races.length} races` });

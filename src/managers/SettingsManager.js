@@ -76,13 +76,13 @@ class SettingsManager {
       const rows = await this.db.select().from(settings).orderBy(settings.key);
       
       const settingsObj = {};
-      rows.forEach(row => {
+      for (const row of rows) {
         settingsObj[row.key] = {
           value: row.value,
           description: row.description,
           updatedAt: row.updated_at
         };
-      });
+      }
       
       return settingsObj;
     } catch (error) {

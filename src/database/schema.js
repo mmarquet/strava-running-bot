@@ -21,13 +21,14 @@ const members = sqliteTable('members', {
   
   // Encrypted token storage (stored as complete encrypted JSON object)
   encrypted_tokens: text('encrypted_tokens'), // JSON string containing the full encrypted token structure
-}, (table) => ({
-  discordIdIdx: index('member_discord_idx').on(table.discord_id),
-  athleteIdIdx: index('member_athlete_idx').on(table.athlete_id),
-  discordUsernameIdx: index('member_discord_username_idx').on(table.discord_username),
-  discordDisplayNameIdx: index('member_discord_display_name_idx').on(table.discord_display_name),
-  registeredAtIdx: index('member_registered_at_idx').on(table.registered_at),
-}));
+});
+
+// Indexes for members table
+const memberDiscordIdIdx = index('member_discord_idx').on(members.discord_id);
+const memberAthleteIdIdx = index('member_athlete_idx').on(members.athlete_id);
+const memberDiscordUsernameIdx = index('member_discord_username_idx').on(members.discord_username);
+const memberDiscordDisplayNameIdx = index('member_discord_display_name_idx').on(members.discord_display_name);
+const memberRegisteredAtIdx = index('member_registered_at_idx').on(members.registered_at);
 
 // Races table - enhanced with road/trail types
 const races = sqliteTable('races', {
@@ -47,11 +48,12 @@ const races = sqliteTable('races', {
   goal_time: text('goal_time'), // e.g. "3:30:00"
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
-}, (table) => ({
-  memberIdx: index('race_member_idx').on(table.member_athlete_id),
-  raceDateIdx: index('race_date_idx').on(table.race_date),
-  raceTypeIdx: index('race_type_idx').on(table.race_type),
-}));
+});
+
+// Indexes for races table
+const raceMemberIdx = index('race_member_idx').on(races.member_athlete_id);
+const raceDateIdx = index('race_date_idx').on(races.race_date);
+const raceTypeIdx = index('race_type_idx').on(races.race_type);
 
 // Migration log table - track migration status
 const migrationLog = sqliteTable('migration_log', {

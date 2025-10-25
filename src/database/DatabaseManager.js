@@ -9,12 +9,10 @@ const config = require('../../config/config');
 const SettingsManager = require('../managers/SettingsManager');
 
 class DatabaseManager {
-  constructor() {
-    this.db = null;
-    this.isInitialized = false;
-    this.oldDataPath = path.join(__dirname, '../../data/members.json');
-    this.settingsManager = null;
-  }
+  db = null;
+  isInitialized = false;
+  oldDataPath = path.join(__dirname, '../../data/members.json');
+  settingsManager = null;
 
   async initialize() {
     if (this.isInitialized) return;
@@ -390,7 +388,7 @@ class DatabaseManager {
     }).returning();
 
     logger.database?.info('Race added', {
-      raceId: race[0].id,
+      raceId: race[0]?.id,
       athleteId: memberAthleteId,
       raceName: raceData.name,
       raceDate: raceData.raceDate,

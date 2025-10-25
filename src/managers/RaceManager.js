@@ -17,7 +17,7 @@ class RaceManager {
       // Get member by Discord ID
       const member = await this.databaseManager.getMemberByDiscordId(discordUserId);
       
-      if (!member || !member.isActive) {
+      if (!member?.isActive) {
         throw new Error('Member not found or inactive');
       }
 
@@ -157,7 +157,7 @@ class RaceManager {
       
       return await this.databaseManager.db.select()
         .from(races)
-        .where(eq(races.id, parseInt(raceId)))
+        .where(eq(races.id, Number.parseInt(raceId, 10)))
         .get();
     } catch (error) {
       logger.database.error('Failed to get race by ID', { raceId, error: error.message });
@@ -245,72 +245,69 @@ class RaceManager {
     }
   }
 
+  // Helper: Validate race date
+  _validateRaceDate(raceDate) {
+    if (!raceDate) {
+      throw new TypeError('Race date is required');
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(raceDate)) {
+      throw new TypeError('Race date must be in YYYY-MM-DD format');
+    }
+
+    const date = new Date(raceDate + 'T00:00:00');
+    if (Number.isNaN(date.getTime())) {
+      throw new TypeError('Invalid race date');
+    }
+  }
+
+  // Helper: Validate distance
+  _validateDistance(distanceKm) {
+    if (!distanceKm) return;
+    
+    const distance = Number.parseFloat(distanceKm);
+    if (Number.isNaN(distance) || distance <= 0) {
+      throw new TypeError('Distance must be a positive number');
+    }
+    if (distance > 1000) {
+      throw new TypeError('Distance cannot exceed 1000km');
+    }
+  }
+
+  // Helper: Validate field lengths
+  _validateFieldLengths(raceData) {
+    const validations = [
+      { field: 'name', maxLength: 100, label: 'Race name' },
+      { field: 'distance', maxLength: 20, label: 'Distance' },
+      { field: 'location', maxLength: 100, label: 'Location' },
+      { field: 'notes', maxLength: 500, label: 'Notes' },
+      { field: 'goalTime', maxLength: 20, label: 'Goal time' }
+    ];
+
+    for (const { field, maxLength, label } of validations) {
+      const value = field === 'name' ? raceData[field]?.trim() : raceData[field];
+      if (value && value.length > maxLength) {
+        throw new TypeError(`${label} cannot exceed ${maxLength} characters`);
+      }
+    }
+  }
+
   // Validate race data
   validateRaceData(raceData) {
     if (!raceData.name || raceData.name.trim().length === 0) {
-      throw new Error('Race name is required');
+      throw new TypeError('Race name is required');
     }
 
-    if (!raceData.raceDate) {
-      throw new Error('Race date is required');
-    }
-
-    // Validate date format (YYYY-MM-DD)
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(raceData.raceDate)) {
-      throw new Error('Race date must be in YYYY-MM-DD format');
-    }
-
-    // Check if date is valid
-    const date = new Date(raceData.raceDate + 'T00:00:00');
-    if (isNaN(date.getTime())) {
-      throw new Error('Invalid race date');
-    }
-
-    // Optional: Check if date is not in the past (uncomment if needed)
-    // const today = new Date();
-    // today.setHours(0, 0, 0, 0);
-    // if (date < today) {
-    //   throw new Error('Race date cannot be in the past');
-    // }
+    this._validateRaceDate(raceData.raceDate);
 
     // Validate race type
     if (raceData.raceType && !['road', 'trail'].includes(raceData.raceType)) {
-      throw new Error('Race type must be either "road" or "trail"');
+      throw new TypeError('Race type must be either "road" or "trail"');
     }
 
-    // Validate distance km if provided
-    if (raceData.distanceKm) {
-      const distanceKm = parseFloat(raceData.distanceKm);
-      if (isNaN(distanceKm) || distanceKm <= 0) {
-        throw new Error('Distance must be a positive number');
-      }
-      if (distanceKm > 1000) {
-        throw new Error('Distance cannot exceed 1000km');
-      }
-    }
-
-    // Validate race name length
-    if (raceData.name.trim().length > 100) {
-      throw new Error('Race name cannot exceed 100 characters');
-    }
-
-    // Validate optional fields
-    if (raceData.distance && raceData.distance.length > 20) {
-      throw new Error('Distance cannot exceed 20 characters');
-    }
-
-    if (raceData.location && raceData.location.length > 100) {
-      throw new Error('Location cannot exceed 100 characters');
-    }
-
-    if (raceData.notes && raceData.notes.length > 500) {
-      throw new Error('Notes cannot exceed 500 characters');
-    }
-
-    if (raceData.goalTime && raceData.goalTime.length > 20) {
-      throw new Error('Goal time cannot exceed 20 characters');
-    }
+    this._validateDistance(raceData.distanceKm);
+    this._validateFieldLengths(raceData);
   }
 
   // Format race for display

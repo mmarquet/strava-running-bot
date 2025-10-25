@@ -145,7 +145,12 @@ describe('MemberManager', () => {
 
       await expect(memberManager.loadMembers()).rejects.toThrow('Permission denied');
 
-      expect(logger.member.error).toHaveBeenCalledWith('Error loading members', error);
+      expect(logger.member.error).toHaveBeenCalledWith('Error loading members', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        code: error.code
+      });
     });
 
     it('should handle corrupt JSON data', async () => {
@@ -368,6 +373,54 @@ describe('MemberManager', () => {
 
     it('should return count of active members only', () => {
       expect(memberManager.getMemberCount()).toBe(2);
+    });
+  });
+
+  describe('getAllMembersIncludingInactive', () => {
+    beforeEach(() => {
+      const activeMember1 = { ...mockMember, isActive: true };
+      const activeMember2 = { ...mockMember, athlete: { ...mockMember.athlete, id: 67890 }, isActive: true };
+      const inactiveMember = { ...mockMember, athlete: { ...mockMember.athlete, id: 11111 }, isActive: false };
+      
+      memberManager.members.set('12345', activeMember1);
+      memberManager.members.set('67890', activeMember2);
+      memberManager.members.set('11111', inactiveMember);
+    });
+
+    it('should return all members including inactive', async () => {
+      const members = await memberManager.getAllMembersIncludingInactive();
+      
+      expect(members).toHaveLength(3);
+      expect(members.filter(m => m.isActive)).toHaveLength(2);
+      expect(members.filter(m => !m.isActive)).toHaveLength(1);
+    });
+  });
+
+  describe('getInactiveMembers', () => {
+    beforeEach(() => {
+      const activeMember = { ...mockMember, isActive: true };
+      const inactiveMember1 = { ...mockMember, athlete: { ...mockMember.athlete, id: 67890 }, isActive: false };
+      const inactiveMember2 = { ...mockMember, athlete: { ...mockMember.athlete, id: 11111 }, isActive: false };
+      
+      memberManager.members.set('12345', activeMember);
+      memberManager.members.set('67890', inactiveMember1);
+      memberManager.members.set('11111', inactiveMember2);
+    });
+
+    it('should return only inactive members', async () => {
+      const members = await memberManager.getInactiveMembers();
+      
+      expect(members).toHaveLength(2);
+      expect(members.every(m => !m.isActive)).toBe(true);
+    });
+
+    it('should return empty array when all members are active', async () => {
+      memberManager.members.clear();
+      memberManager.members.set('12345', { ...mockMember, isActive: true });
+      
+      const members = await memberManager.getInactiveMembers();
+      
+      expect(members).toHaveLength(0);
     });
   });
 

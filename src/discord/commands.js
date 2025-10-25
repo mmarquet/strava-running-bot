@@ -29,12 +29,12 @@ class DiscordCommands {
               option
                 .setName('notify')
                 .setDescription('How to notify inactive members')
-                .setRequired(false)
                 .addChoices(
                   { name: 'No notification', value: 'none' },
                   { name: 'Send DM (private message)', value: 'dm' },
                   { name: 'Mention in channel', value: 'channel' }
                 )
+                .setRequired(false)
             )
         )
         .addSubcommand(subcommand =>

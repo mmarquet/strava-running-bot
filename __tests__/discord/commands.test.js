@@ -35,7 +35,8 @@ jest.mock('discord.js', () => {
               setName: jest.fn().mockReturnThis(),
               setDescription: jest.fn().mockReturnThis(),
               setRequired: jest.fn().mockReturnThis(),
-              setAutocomplete: jest.fn().mockReturnThis()
+              setAutocomplete: jest.fn().mockReturnThis(),
+              addChoices: jest.fn().mockReturnThis()
             };
             optionCallback(option);
             subcommand.options.push(option);
@@ -147,6 +148,7 @@ describe('DiscordCommands', () => {
     // Mock MemberManager
     mockMemberManager = {
       getAllMembers: jest.fn(),
+      getInactiveMembers: jest.fn(),
       getMemberByDiscordId: jest.fn(),
       removeMemberByDiscordId: jest.fn(),
       deactivateMember: jest.fn(),
@@ -241,7 +243,7 @@ describe('DiscordCommands', () => {
       const membersCommand = commands.find(cmd => cmd.name === 'members');
 
       expect(membersCommand).toBeDefined();
-      expect(membersCommand.options).toHaveLength(4); // list, remove, deactivate, reactivate
+      expect(membersCommand.options).toHaveLength(5); // list, inactive, remove, deactivate, reactivate
     });
 
     it('should include register command', () => {
@@ -349,8 +351,8 @@ describe('DiscordCommands', () => {
 
   describe('handleMembersCommand', () => {
     it('should route to correct subcommand handlers', async () => {
-      const handlers = ['listMembers', 'removeMember', 'deactivateMember', 'reactivateMember'];
-      const subcommands = ['list', 'remove', 'deactivate', 'reactivate'];
+      const handlers = ['listMembers', 'listInactiveMembers', 'removeMember', 'deactivateMember', 'reactivateMember'];
+      const subcommands = ['list', 'inactive', 'remove', 'deactivate', 'reactivate'];
 
       for (let i = 0; i < handlers.length; i++) {
         jest.clearAllMocks();
@@ -416,6 +418,123 @@ describe('DiscordCommands', () => {
       await discordCommands.listMembers(mockInteraction);
 
       expect(DiscordUtils.chunkArray).toHaveBeenCalledWith(manyMembers, 10);
+    });
+  });
+
+  describe('listInactiveMembers', () => {
+    const inactiveMember = {
+      discordUserId: '987654321',
+      discordUser: {
+        username: 'inactiveuser',
+        displayName: 'Inactive User'
+      },
+      athlete: {
+        id: 67890,
+        firstname: 'Inactive',
+        lastname: 'Runner'
+      },
+      isActive: false,
+      tokenError: {
+        message: 'Token refresh failed',
+        timestamp: '2025-10-20T10:00:00.000Z'
+      }
+    };
+
+    beforeEach(() => {
+      mockInteraction.options.getString.mockReturnValue('none');
+      mockInteraction.channel = {
+        send: jest.fn().mockResolvedValue({})
+      };
+      mockInteraction.client = {
+        users: {
+          fetch: jest.fn()
+        }
+      };
+    });
+
+    it('should list inactive members successfully', async () => {
+      mockMemberManager.getInactiveMembers.mockResolvedValue([inactiveMember]);
+
+      await discordCommands.listInactiveMembers(mockInteraction, mockInteraction.options);
+
+      expect(mockInteraction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      expect(mockMemberManager.getInactiveMembers).toHaveBeenCalled();
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        embeds: [expect.any(Object)]
+      });
+    });
+
+    it('should handle no inactive members', async () => {
+      mockMemberManager.getInactiveMembers.mockResolvedValue([]);
+
+      await discordCommands.listInactiveMembers(mockInteraction, mockInteraction.options);
+
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: '✅ All team members are active!',
+        ephemeral: true
+      });
+    });
+
+    it('should send DMs when notify is "dm"', async () => {
+      mockInteraction.options.getString.mockReturnValue('dm');
+      mockMemberManager.getInactiveMembers.mockResolvedValue([inactiveMember]);
+      
+      const mockUser = {
+        send: jest.fn().mockResolvedValue({})
+      };
+      mockInteraction.client.users.fetch.mockResolvedValue(mockUser);
+
+      await discordCommands.listInactiveMembers(mockInteraction, mockInteraction.options);
+
+      expect(mockInteraction.client.users.fetch).toHaveBeenCalledWith('987654321');
+      expect(mockUser.send).toHaveBeenCalledWith({
+        embeds: [expect.any(Object)]
+      });
+      expect(mockInteraction.followUp).toHaveBeenCalledWith({
+        content: expect.stringContaining('DM Notification Results'),
+        ephemeral: true
+      });
+    });
+
+    it('should post in channel when notify is "channel"', async () => {
+      mockInteraction.options.getString.mockReturnValue('channel');
+      mockMemberManager.getInactiveMembers.mockResolvedValue([inactiveMember]);
+
+      await discordCommands.listInactiveMembers(mockInteraction, mockInteraction.options);
+
+      expect(mockInteraction.channel.send).toHaveBeenCalledWith({
+        embeds: [expect.any(Object)]
+      });
+      expect(mockInteraction.followUp).toHaveBeenCalledWith({
+        content: expect.stringContaining('Posted notification in channel'),
+        ephemeral: true
+      });
+    });
+
+    it('should handle DM send failures gracefully', async () => {
+      mockInteraction.options.getString.mockReturnValue('dm');
+      mockMemberManager.getInactiveMembers.mockResolvedValue([inactiveMember]);
+      
+      mockInteraction.client.users.fetch.mockRejectedValue(new Error('User not found'));
+
+      await discordCommands.listInactiveMembers(mockInteraction, mockInteraction.options);
+
+      expect(mockInteraction.followUp).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed: 1'),
+        ephemeral: true
+      });
+    });
+
+    it('should handle errors', async () => {
+      const error = new Error('Database error');
+      mockMemberManager.getInactiveMembers.mockRejectedValue(error);
+
+      await discordCommands.listInactiveMembers(mockInteraction, mockInteraction.options);
+
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: '❌ Failed to retrieve inactive member list.',
+        ephemeral: true
+      });
     });
   });
 

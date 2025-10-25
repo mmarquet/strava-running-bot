@@ -160,6 +160,97 @@ describe('MemberManager', () => {
 
       expect(logger.member.error).toHaveBeenCalled();
     });
+
+    it('should skip members with decryption errors and continue loading', async () => {
+      const validMember = {
+        discordUserId: '123456789',
+        athlete: { id: 12345, firstname: 'Valid', lastname: 'User' },
+        tokens: {
+          encrypted: 'valid_encrypted_data',
+          iv: 'valid_iv',
+          authTag: 'valid_auth_tag'
+        },
+        registeredAt: new Date().toISOString(),
+        isActive: true
+      };
+
+      const invalidMember = {
+        discordUserId: '987654321',
+        athlete: { id: 67890, firstname: 'Invalid', lastname: 'User' },
+        tokens: {
+          encrypted: 'invalid_data',
+          iv: 'bad_iv',
+          authTag: 'bad_tag'
+        },
+        registeredAt: new Date().toISOString(),
+        isActive: true
+      };
+
+      const fileData = {
+        version: '1.0',
+        savedAt: new Date().toISOString(),
+        members: [validMember, invalidMember]
+      };
+
+      fs.readFile.mockResolvedValue(JSON.stringify(fileData));
+
+      // Mock decryptMemberData to throw error for invalid member
+      jest.spyOn(memberManager, 'decryptMemberData')
+        .mockImplementationOnce(() => validMember) // First call succeeds
+        .mockImplementationOnce(() => {
+          throw new Error('Unsupported state or unable to authenticate data');
+        }); // Second call fails
+
+      await memberManager.loadMembers();
+
+      // Should have loaded only the valid member
+      expect(memberManager.members.size).toBe(1);
+      expect(memberManager.members.has('12345')).toBe(true);
+      expect(memberManager.members.has('67890')).toBe(false);
+      
+      // Should log error for the failed decryption
+      expect(logger.member.error).toHaveBeenCalledWith(
+        'Failed to decrypt member data, skipping',
+        expect.objectContaining({
+          athlete: 'Invalid User (ID: 67890)',
+          discordUserId: '987654321',
+          error: 'Unsupported state or unable to authenticate data'
+        })
+      );
+    });
+
+    it('should log warning when decryption errors are found', async () => {
+      const memberWithBadEncryption = {
+        discordUserId: '123456789',
+        athlete: { id: 12345, firstname: 'Test', lastname: 'User' },
+        tokens: {
+          encrypted: 'bad_data',
+          iv: 'bad_iv',
+          authTag: 'bad_tag'
+        },
+        registeredAt: new Date().toISOString(),
+        isActive: true
+      };
+
+      const fileData = {
+        version: '1.0',
+        savedAt: new Date().toISOString(),
+        members: [memberWithBadEncryption]
+      };
+
+      fs.readFile.mockResolvedValue(JSON.stringify(fileData));
+
+      jest.spyOn(memberManager, 'decryptMemberData').mockImplementation(() => {
+        throw new Error('Decryption failed');
+      });
+
+      await memberManager.loadMembers();
+
+      expect(logger.member.error).toHaveBeenCalledWith(
+        expect.stringContaining('could not be decrypted'),
+        expect.any(Object)
+      );
+    });
   });
 
   describe('saveMembers', () => {
@@ -302,6 +393,129 @@ describe('MemberManager', () => {
       expect(member.discordUser).toBeNull();
       expect(member.discordUserId).toBe(mockMember.discordUserId);
     });
+
+    it('should reactivate inactive member with same Discord ID', async () => {
+      // Setup existing inactive member
+      const inactiveMember = {
+        ...mockMember,
+        isActive: false,
+        tokenError: {
+          message: 'Token refresh failed',
+          timestamp: '2025-10-20T10:00:00.000Z'
+        },
+        deactivatedAt: '2025-10-20T10:00:00.000Z'
+      };
+      memberManager.members.set('12345', inactiveMember);
+
+      const newTokenData = {
+        access_token: 'new_access_token',
+        refresh_token: 'new_refresh_token',
+        expires_at: 1234567890,
+        expires_in: 21600,
+        token_type: 'Bearer'
+      };
+
+      const result = await memberManager.registerMember(
+        mockMember.discordUserId,
+        mockMember.athlete,
+        newTokenData,
+        mockMember.discordUser
+      );
+
+      expect(result.isActive).toBe(true);
+      expect(result.tokenError).toBeUndefined();
+      expect(result.deactivatedAt).toBeUndefined();
+      expect(result.reactivatedAt).toBeDefined();
+      expect(result.tokens.access_token).toBe('new_access_token');
+      expect(memberManager.discordToStrava.get(mockMember.discordUserId)).toBe('12345');
+      expect(logger.memberAction).toHaveBeenCalledWith(
+        'REACTIVATED',
+        'John Doe',
+        mockMember.discordUserId,
+        '12345',
+        expect.any(Object)
+      );
+    });
+
+    it('should throw error when trying to register existing active athlete', async () => {
+      const existingMember = { ...mockMember, isActive: true };
+      memberManager.members.set('12345', existingMember);
+      memberManager.discordToStrava.set(mockMember.discordUserId, '12345');
+
+      await expect(
+        memberManager.registerMember(
+          mockMember.discordUserId,
+          mockMember.athlete,
+          mockMember.tokens,
+          mockMember.discordUser
+        )
+      ).rejects.toThrow('already registered');
+    });
+
+    it('should throw error when Discord user already registered to different athlete', async () => {
+      const existingMember = { ...mockMember, athlete: { ...mockMember.athlete, id: 99999 } };
+      memberManager.members.set('99999', existingMember);
+      memberManager.discordToStrava.set(mockMember.discordUserId, '99999');
+
+      await expect(
+        memberManager.registerMember(
+          mockMember.discordUserId,
+          mockMember.athlete,
+          mockMember.tokens,
+          mockMember.discordUser
+        )
+      ).rejects.toThrow('already registered to athlete');
+    });
+
+    it('should update Discord user info when reactivating', async () => {
+      const inactiveMember = {
+        ...mockMember,
+        isActive: false,
+        discordUser: {
+          username: 'oldusername',
+          displayName: 'Old Name',
+          discriminator: '0000',
+          avatar: 'old_avatar',
+          avatarURL: 'old_url'
+        }
+      };
+      memberManager.members.set('12345', inactiveMember);
+
+      const newDiscordUser = {
+        username: 'newusername',
+        displayName: 'New Name',
+        discriminator: '0001',
+        avatar: 'new_avatar',
+        displayAvatarURL: () => 'new_url'
+      };
+
+      const result = await memberManager.registerMember(
+        mockMember.discordUserId,
+        mockMember.athlete,
+        mockMember.tokens,
+        newDiscordUser
+      );
+
+      expect(result.discordUser.username).toBe('newusername');
+      expect(result.discordUser.displayName).toBe('New Name');
+      expect(result.discordUser.avatarURL).toBe('new_url');
+    });
+
+    it('should rollback changes if save fails during registration', async () => {
+      memberManager.saveMembers.mockRejectedValue(new Error('Save failed'));
+
+      await expect(
+        memberManager.registerMember(
+          mockMember.discordUserId,
+          mockMember.athlete,
+          mockMember.tokens,
+          mockMember.discordUser
+        )
+      ).rejects.toThrow('Save failed');
+
+      expect(memberManager.members.size).toBe(0);
+      expect(memberManager.discordToStrava.size).toBe(0);
+    });
   });
 
   describe('getMemberByAthleteId', () => {
@@ -394,6 +608,28 @@ describe('MemberManager', () => {
       expect(members.filter(m => m.isActive)).toHaveLength(2);
       expect(members.filter(m => !m.isActive)).toHaveLength(1);
     });
+
+    it('should return empty array when no members exist', async () => {
+      memberManager.members.clear();
+      
+      const members = await memberManager.getAllMembersIncludingInactive();
+      
+      expect(members).toHaveLength(0);
+    });
+
+    it('should return all members when all are inactive', async () => {
+      memberManager.members.clear();
+      const inactiveMember1 = { ...mockMember, athlete: { ...mockMember.athlete, id: 67890 }, isActive: false };
+      const inactiveMember2 = { ...mockMember, athlete: { ...mockMember.athlete, id: 11111 }, isActive: false };
+      
+      memberManager.members.set('67890', inactiveMember1);
+      memberManager.members.set('11111', inactiveMember2);
+      
+      const members = await memberManager.getAllMembersIncludingInactive();
+      
+      expect(members).toHaveLength(2);
+      expect(members.every(m => !m.isActive)).toBe(true);
+    });
   });
 
   describe('getInactiveMembers', () => {
@@ -421,6 +657,47 @@ describe('MemberManager', () => {
       const members = await memberManager.getInactiveMembers();
       
       expect(members).toHaveLength(0);
+    });
+
+    it('should return empty array when no members exist', async () => {
+      memberManager.members.clear();
+      
+      const members = await memberManager.getInactiveMembers();
+      
+      expect(members).toHaveLength(0);
+    });
+
+    it('should include members with token errors', async () => {
+      memberManager.members.clear();
+      const inactiveMemberWithError = {
+        ...mockMember,
+        athlete: { ...mockMember.athlete, id: 99999 },
+        isActive: false,
+        tokenError: {
+          message: 'Token refresh failed',
+          timestamp: new Date().toISOString()
+        }
+      };
+      
+      memberManager.members.set('99999', inactiveMemberWithError);
+      
+      const members = await memberManager.getInactiveMembers();
+      
+      expect(members).toHaveLength(1);
+      expect(members[0].tokenError).toBeDefined();
+      expect(members[0].tokenError.message).toBe('Token refresh failed');
+    });
+
+    it('should not include members with isActive undefined', async () => {
+      memberManager.members.clear();
+      const memberWithoutActiveFlag = { ...mockMember };
+      delete memberWithoutActiveFlag.isActive;
+      
+      memberManager.members.set('12345', memberWithoutActiveFlag);
+      
+      const members = await memberManager.getInactiveMembers();
+      
+      expect(members).toHaveLength(1); // undefined is falsy, so it's considered inactive
     });
   });
 

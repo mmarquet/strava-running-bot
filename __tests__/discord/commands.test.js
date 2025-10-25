@@ -536,6 +536,102 @@ describe('DiscordCommands', () => {
         ephemeral: true
       });
     });
+
+    it('should handle multiple inactive members with DM notification', async () => {
+      mockInteraction.options.getString.mockReturnValue('dm');
+      
+      const inactiveMember2 = {
+        ...inactiveMember,
+        discordUserId: '111222333',
+        athlete: { id: 11111, firstname: 'Another', lastname: 'User' }
+      };
+      
+      mockMemberManager.getInactiveMembers.mockResolvedValue([inactiveMember, inactiveMember2]);
+      
+      const mockUser1 = { send: jest.fn().mockResolvedValue({}) };
+      const mockUser2 = { send: jest.fn().mockResolvedValue({}) };
+      
+      mockInteraction.client.users.fetch
+        .mockResolvedValueOnce(mockUser1)
+        .mockResolvedValueOnce(mockUser2);
+
+      await discordCommands.listInactiveMembers(mockInteraction, mockInteraction.options);
+
+      expect(mockInteraction.client.users.fetch).toHaveBeenCalledTimes(2);
+      expect(mockUser1.send).toHaveBeenCalled();
+      expect(mockUser2.send).toHaveBeenCalled();
+      expect(mockInteraction.followUp).toHaveBeenCalledWith({
+        content: expect.stringContaining('Sent: 2'),
+        ephemeral: true
+      });
+    });
+
+    it('should handle mix of successful and failed DM sends', async () => {
+      mockInteraction.options.getString.mockReturnValue('dm');
+      
+      const inactiveMember2 = {
+        ...inactiveMember,
+        discordUserId: '111222333',
+        athlete: { id: 11111, firstname: 'Another', lastname: 'User' }
+      };
+      
+      mockMemberManager.getInactiveMembers.mockResolvedValue([inactiveMember, inactiveMember2]);
+      
+      const mockUser = { send: jest.fn().mockResolvedValue({}) };
+      
+      mockInteraction.client.users.fetch
+        .mockResolvedValueOnce(mockUser)
+        .mockRejectedValueOnce(new Error('User not found'));
+
+      await discordCommands.listInactiveMembers(mockInteraction, mockInteraction.options);
+
+      expect(mockInteraction.followUp).toHaveBeenCalledWith({
+        content: expect.stringContaining('Sent: 1'),
+        ephemeral: true
+      });
+      expect(mockInteraction.followUp).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed: 1'),
+        ephemeral: true
+      });
+    });
+
+    it('should handle multiple inactive members with channel notification', async () => {
+      mockInteraction.options.getString.mockReturnValue('channel');
+      
+      const inactiveMember2 = {
+        ...inactiveMember,
+        discordUserId: '111222333'
+      };
+      
+      mockMemberManager.getInactiveMembers.mockResolvedValue([inactiveMember, inactiveMember2]);
+
+      await discordCommands.listInactiveMembers(mockInteraction, mockInteraction.options);
+
+      expect(mockInteraction.channel.send).toHaveBeenCalledWith({
+        embeds: [expect.any(Object)]
+      });
+      expect(mockInteraction.followUp).toHaveBeenCalledWith({
+        content: expect.stringContaining('2 inactive member'),
+        ephemeral: true
+      });
+    });
+
+    it('should display member without tokenError correctly', async () => {
+      mockInteraction.options.getString.mockReturnValue('none');
+      
+      const memberNoError = {
+        ...inactiveMember,
+        tokenError: undefined
+      };
+      
+      mockMemberManager.getInactiveMembers.mockResolvedValue([memberNoError]);
+
+      await discordCommands.listInactiveMembers(mockInteraction, mockInteraction.options);
+
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        embeds: [expect.any(Object)]
+      });
+    });
   });
 
   describe('removeMember', () => {

@@ -211,6 +211,17 @@ class DatabaseManager {
 
     const athleteId = Number.parseInt(athlete.id);
 
+    // DEBUG: Log what discordUser contains
+    logger.database.info('Registering member with Discord info', {
+      discordUserId,
+      hasDiscordUser: !!discordUser,
+      discordUsername: discordUser?.username,
+      discordGlobalName: discordUser?.globalName,
+      discordDisplayName: discordUser?.displayName,
+      discordDiscriminator: discordUser?.discriminator,
+      discordUserKeys: discordUser ? Object.keys(discordUser) : []
+    });
+
     // Check for existing registrations
     const existingByDiscord = await this.getMemberByDiscordId(discordUserId);
     if (existingByDiscord) {
@@ -222,21 +233,74 @@ class DatabaseManager {
       throw new Error(`Athlete ${athleteId} is already registered and active`);
     }
 
-    // Insert new member (simplified schema - no encryption)
-    await this.db.insert(members).values({
+    // Encrypt tokens if encryption key is available
+    let encryptedTokens = null;
+    if (tokenData && config.security.encryptionKey) {
+      try {
+        const crypto = require('node:crypto');
+        const algorithm = 'aes-256-gcm';
+        const key = Buffer.from(config.security.encryptionKey, 'hex');
+        const iv = crypto.randomBytes(16);
+
+        const cipher = crypto.createCipheriv(algorithm, key, iv);
+        const sensitiveData = JSON.stringify(tokenData);
+        let encrypted = cipher.update(sensitiveData, 'utf8', 'hex');
+        encrypted += cipher.final('hex');
+        const authTag = cipher.getAuthTag();
+
+        // Store in format compatible with DatabaseMemberManager._decryptTokenData
+        encryptedTokens = JSON.stringify({
+          iv: iv.toString('hex'),
+          encrypted: encrypted,
+          authTag: authTag.toString('hex')
+        });
+
+        logger.database.info('Tokens encrypted successfully for new member', {
+          athleteId,
+          hasRefreshToken: !!tokenData.refresh_token,
+          expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at * 1000).toISOString() : 'unknown'
+        });
+      } catch (error) {
+        logger.database.error('Failed to encrypt tokens during registration', {
+          athleteId,
+          error: error.message
+        });
+      }
+    } else {
+      logger.database.warn('Tokens not encrypted - missing encryption key or tokenData', {
+        athleteId,
+        hasTokenData: !!tokenData,
+        hasEncryptionKey: !!config.security.encryptionKey
+      });
+    }
+
+    // Prepare member data with Discord user information
+    const memberData = {
       athlete_id: athleteId,
       discord_id: discordUserId,
       athlete: JSON.stringify(athlete), // Store as JSON string
       is_active: 1,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    });
+      // Save Discord user information for proper name display
+      discord_username: discordUser?.username || null,
+      discord_display_name: discordUser?.globalName || discordUser?.displayName || null,
+      discord_discriminator: discordUser?.discriminator || '0',
+      discord_avatar: discordUser?.avatar || null,
+      // Save encrypted tokens
+      encrypted_tokens: encryptedTokens,
+    };
+
+    // Insert new member
+    await this.db.insert(members).values(memberData);
 
     // Get the inserted member
     const newMember = await this.getMemberByAthleteId(athleteId);
-    
+
     logger.memberAction('REGISTERED', `${athlete.firstname} ${athlete.lastname}`, discordUserId, athleteId, {
-      registeredAt: newMember.registeredAt
+      registeredAt: newMember.registeredAt,
+      discordUsername: memberData.discord_username,
+      discordDisplayName: memberData.discord_display_name
       });
 
     return newMember;
@@ -318,19 +382,22 @@ class DatabaseManager {
   async removeMember(athleteId) {
     await this.ensureInitialized();
 
-    const transaction = this.db.transaction(async () => {
-      // Get member before deletion for logging
-      const member = await this.getMemberByAthleteId(athleteId);
-      
-      if (!member) return null;
+    // Get member before deletion for logging (OUTSIDE transaction)
+    const member = await this.getMemberByAthleteId(athleteId);
 
+    if (!member) return null;
+
+    // Transaction must be synchronous for better-sqlite3
+    const transaction = this.db.transaction(() => {
       // Delete associated races first (cascade should handle this, but being explicit)
-      await this.db.delete(races)
-        .where(eq(races.member_athlete_id, Number.parseInt(athleteId)));
+      this.db.delete(races)
+        .where(eq(races.member_athlete_id, Number.parseInt(athleteId)))
+        .run();
 
       // Delete member
-      await this.db.delete(members)
-        .where(eq(members.athlete_id, Number.parseInt(athleteId)));
+      this.db.delete(members)
+        .where(eq(members.athlete_id, Number.parseInt(athleteId)))
+        .run();
 
       logger.memberAction('REMOVED', member.athlete?.firstname || '', member.discordId, athleteId, {
         removedAt: new Date().toISOString()
@@ -339,7 +406,7 @@ class DatabaseManager {
       return member;
     });
 
-    return await transaction();
+    return transaction();
   }
 
   async updateTokens(athleteId, tokenData) {

@@ -145,7 +145,7 @@ class DatabaseMemberManager {
       const fs = require('node:fs').promises;
       const path = require('node:path');
       
-      const jsonPath = path.join(__dirname, '../../data/data/members.json');
+      const jsonPath = path.join(__dirname, '../../data/members.json');
       const jsonData = await fs.readFile(jsonPath, 'utf8');
       const memberData = JSON.parse(jsonData);
       

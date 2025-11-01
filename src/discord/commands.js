@@ -343,7 +343,11 @@ class DiscordCommands {
       user: interaction.user.tag,
       userId: interaction.user.id,
       guild: interaction.guild?.name,
-      channel: interaction.channel?.name
+      channel: interaction.channel?.name,
+      interactionId: interaction.id,
+      createdTimestamp: interaction.createdTimestamp,
+      currentTimestamp: Date.now(),
+      ageMs: Date.now() - interaction.createdTimestamp
     });
 
     try {
@@ -430,7 +434,7 @@ class DiscordCommands {
       try {
         const fs = require('node:fs').promises;
         const path = require('node:path');
-        const jsonPath = path.join(__dirname, '../../data/data/members.json');
+        const jsonPath = path.join(__dirname, '../../data/members.json');
         const jsonData = await fs.readFile(jsonPath, 'utf8');
         const memberDataJson = JSON.parse(jsonData);
         
@@ -687,14 +691,16 @@ class DiscordCommands {
 
   // Handle register command
   async handleRegisterCommand(interaction) {
+    // Acknowledge immediately to prevent timeout
+    await interaction.deferReply({ ephemeral: true });
+
     const userId = interaction.user.id;
     const existingMember = await this.activityProcessor.memberManager.getMemberByDiscordId(userId);
 
     if (existingMember) {
       const memberName = existingMember.discordUser ? existingMember.discordUser.displayName : `${existingMember.athlete.firstname} ${existingMember.athlete.lastname}`;
-      await interaction.reply({
-        content: `✅ You're already registered as **${memberName}**.`,
-        ephemeral: true
+      await interaction.editReply({
+        content: `✅ You're already registered as **${memberName}**.`
       });
       return;
     }
@@ -716,10 +722,9 @@ class DiscordCommands {
       })
       .setTimestamp();
 
-    await interaction.reply({ 
-      embeds: [embed],
-      ephemeral: true 
-    } );
+    await interaction.editReply({
+      embeds: [embed]
+    });
   }
 
 
@@ -785,7 +790,31 @@ class DiscordCommands {
 
   // Handle last activity command
   async handleLastActivityCommand(interaction, options) {
-    await interaction.deferReply();
+    const startTime = Date.now();
+    logger.discord.info('handleLastActivityCommand: START', {
+      interactionId: interaction.id,
+      replied: interaction.replied,
+      deferred: interaction.deferred,
+      createdTimestamp: interaction.createdTimestamp,
+      currentTimestamp: Date.now(),
+      ageMs: Date.now() - interaction.createdTimestamp
+    });
+
+    try {
+      logger.discord.info('handleLastActivityCommand: Calling deferReply()');
+      await interaction.deferReply();
+      logger.discord.info('handleLastActivityCommand: deferReply() completed', {
+        durationMs: Date.now() - startTime
+      });
+    } catch (error) {
+      logger.discord.error('handleLastActivityCommand: deferReply() FAILED', {
+        error: error.message,
+        code: error.code,
+        ageMs: Date.now() - interaction.createdTimestamp,
+        durationMs: Date.now() - startTime
+      });
+      throw error;
+    }
 
     try {
       const memberInput = options.getString('member');
@@ -812,7 +841,7 @@ class DiscordCommands {
       try {
         const fs = require('node:fs').promises;
         const path = require('node:path');
-        const jsonPath = path.join(__dirname, '../../data/data/members.json');
+        const jsonPath = path.join(__dirname, '../../data/members.json');
         const jsonData = await fs.readFile(jsonPath, 'utf8');
         const memberDataJson = JSON.parse(jsonData);
         
@@ -960,21 +989,25 @@ class DiscordCommands {
     if (focusedOption.name === 'member') {
       try {
         const members = await this.activityProcessor.memberManager.getAllMembers();
-        const searchTerm = focusedOption.value.toLowerCase();
+        const searchTerm = (focusedOption.value || '').toLowerCase();
         
         const choices = members
+          .filter(member => member.athlete && member.athlete.firstname && member.athlete.lastname)
           .filter(member => {
-            const memberName = member.discordUser ? member.discordUser.displayName.toLowerCase() : `${member.athlete.firstname} ${member.athlete.lastname}`.toLowerCase();
-            const fullName = `${member.athlete.firstname} ${member.athlete.lastname}`.toLowerCase();
-            return memberName.includes(searchTerm) || 
-                   fullName.includes(searchTerm) || 
-                   member.athlete.firstname.toLowerCase().includes(searchTerm) ||
-                   member.athlete.lastname.toLowerCase().includes(searchTerm);
+            const firstName = member.athlete.firstname?.toLowerCase() || '';
+            const lastName = member.athlete.lastname?.toLowerCase() || '';
+            const memberName = member.discordUser?.displayName?.toLowerCase() || `${firstName} ${lastName}`;
+            const fullName = `${firstName} ${lastName}`.trim();
+
+            return memberName.includes(searchTerm) ||
+                   fullName.includes(searchTerm) ||
+                   firstName.includes(searchTerm) ||
+                   lastName.includes(searchTerm);
           })
           .slice(0, 25) // Discord limits to 25 choices
           .map(member => ({
-            name: member.discordUser ? member.discordUser.displayName : `${member.athlete.firstname} ${member.athlete.lastname}`,
-            value: member.discordUser ? member.discordUser.displayName : `${member.athlete.firstname} ${member.athlete.lastname}`
+            name: member.discordUser?.displayName || `${member.athlete.firstname} ${member.athlete.lastname}`,
+            value: member.discordUser?.displayName || `${member.athlete.firstname} ${member.athlete.lastname}`
           }));
 
         await interaction.respond(choices);

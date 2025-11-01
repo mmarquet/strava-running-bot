@@ -13,6 +13,7 @@
     "db:generate": "drizzle-kit generate:sqlite",
     "db:migrate": "node src/database/migrate.js",
     "db:studio": "drizzle-kit studio",
+    "tokens:refresh": "node scripts/refresh-expired-tokens.js",
     "sonar:report": "node -r dotenv/config scripts/sonar-api.mjs report"
   },
   "keywords": [

@@ -409,25 +409,71 @@ class DatabaseManager {
     return transaction();
   }
 
-  async updateTokens(athleteId, _tokenData) {
+  async updateTokens(athleteId, tokenData) {
     await this.ensureInitialized();
 
-    // TODO: Implement token update with encryption
-    // Currently tokens are only saved during initial registration
-    // This method is called by token auto-refresh (Bug #49 - not yet implemented)
-    logger.database?.info('Token update requested - not yet implemented', {
-      athleteId
-    });
+    if (!tokenData) {
+      logger.database.warn('updateTokens called with no tokenData', { athleteId });
+      return null;
+    }
 
-    // Update the member's updated_at timestamp to track the request
+    // Encrypt the new tokens
+    let encryptedTokens = null;
+    if (config.security.encryptionKey) {
+      try {
+        const crypto = require('node:crypto');
+        const algorithm = 'aes-256-gcm';
+        const key = Buffer.from(config.security.encryptionKey, 'hex');
+        const iv = crypto.randomBytes(16);
+
+        const cipher = crypto.createCipheriv(algorithm, key, iv);
+        const sensitiveData = JSON.stringify(tokenData);
+        let encrypted = cipher.update(sensitiveData, 'utf8', 'hex');
+        encrypted += cipher.final('hex');
+        const authTag = cipher.getAuthTag();
+
+        // Store in format compatible with DatabaseMemberManager._decryptTokenData
+        encryptedTokens = JSON.stringify({
+          iv: iv.toString('hex'),
+          encrypted: encrypted,
+          authTag: authTag.toString('hex')
+        });
+
+        logger.database.info('Tokens encrypted successfully for token update', {
+          athleteId,
+          hasRefreshToken: !!tokenData.refresh_token,
+          expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at * 1000).toISOString() : 'unknown'
+        });
+      } catch (error) {
+        logger.database.error('Failed to encrypt tokens during update', {
+          athleteId,
+          error: error.message
+        });
+        throw error;
+      }
+    } else {
+      logger.database.error('Cannot update tokens - no encryption key available', { athleteId });
+      throw new Error('Encryption key not available');
+    }
+
+    // Update the member's tokens and timestamp
     const result = await this.db.update(members)
-      .set({ 
+      .set({
+        encrypted_tokens: encryptedTokens,
         updated_at: new Date().toISOString()
       })
       .where(eq(members.athlete_id, Number.parseInt(athleteId)))
       .returning();
 
-    return result.length > 0;
+    if (result && result.length > 0) {
+      logger.database.info('Tokens updated successfully in database', {
+        athleteId,
+        expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at * 1000).toISOString() : 'unknown'
+      });
+      return result[0];
+    }
+
+    return null;
   }
 
   // === RACE MANAGEMENT ===

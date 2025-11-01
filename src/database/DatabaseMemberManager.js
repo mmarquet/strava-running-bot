@@ -81,35 +81,31 @@ class DatabaseMemberManager {
   _decryptTokenData(encryptedTokens, athleteId) {
     const config = require('../../config/config');
     const crypto = require('node:crypto');
-    
+
     if (!config.security.encryptionKey) {
       logger.database.warn('No encryption key available for token decryption');
       return null;
     }
-    
+
     const algorithm = 'aes-256-gcm';
     const key = Buffer.from(config.security.encryptionKey, 'hex');
     const iv = Buffer.from(encryptedTokens.iv, 'hex');
     const authTag = Buffer.from(encryptedTokens.authTag, 'hex');
-    
+
     const decipher = crypto.createDecipheriv(algorithm, key, iv);
     decipher.setAuthTag(authTag);
-    
+
     let decrypted = decipher.update(encryptedTokens.encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
-    
+
     const decryptedTokens = JSON.parse(decrypted);
-    
-    // Check if token is expired
-    if (decryptedTokens.expires_at && decryptedTokens.expires_at < Date.now() / 1000) {
-      logger.database.info('Token expired for member', { athleteId });
-      return null;
-    }
-    
-    return decryptedTokens.access_token;
+
+    // Return full token data (including refresh_token and expires_at)
+    // Expiration check moved to _getTokensFromDatabase to enable auto-refresh
+    return decryptedTokens;
   }
 
-  // Helper: Try to get tokens from database
+  // Helper: Try to get tokens from database with auto-refresh
   async _getTokensFromDatabase(member) {
     if (!member.tokens?.encrypted) {
       return null;
@@ -121,15 +117,75 @@ class DatabaseMemberManager {
 
     try {
       logger.database.info('Attempting token decryption from database', { athleteId: member.athleteId });
-      const accessToken = this._decryptTokenData(member.tokens, member.athleteId);
-      
-      if (accessToken) {
-        logger.database.info('Successfully retrieved access token from database', { athleteId: member.athleteId });
+      const tokenData = this._decryptTokenData(member.tokens, member.athleteId);
+
+      if (!tokenData) {
+        return null;
       }
-      
-      return accessToken;
+
+      // Check if token is expired
+      const isExpired = tokenData.expires_at && tokenData.expires_at < Date.now() / 1000;
+
+      if (isExpired) {
+        logger.database.info('Token expired, attempting auto-refresh', {
+          athleteId: member.athleteId,
+          expiresAt: new Date(tokenData.expires_at * 1000).toISOString()
+        });
+
+        // Attempt to refresh the token
+        if (!tokenData.refresh_token) {
+          logger.database.warn('No refresh token available for expired token', {
+            athleteId: member.athleteId
+          });
+          return null;
+        }
+
+        try {
+          // Use StravaAPI to refresh the token
+          const stravaAPI = require('../strava/api');
+          const api = new stravaAPI();
+          const newTokens = await api.refreshAccessToken(tokenData.refresh_token);
+
+          logger.database.info('Token refreshed successfully via Strava API', {
+            athleteId: member.athleteId,
+            newExpiresAt: new Date(newTokens.expires_at * 1000).toISOString()
+          });
+
+          // Update database with new tokens
+          await this.updateTokens(member.athleteId, newTokens);
+
+          logger.database.info('Successfully updated database with refreshed tokens', {
+            athleteId: member.athleteId
+          });
+
+          return newTokens.access_token;
+        } catch (error) {
+          logger.database.error('Token refresh failed', {
+            athleteId: member.athleteId,
+            error: error.message,
+            stack: error.stack
+          });
+
+          // If refresh fails with 401, token was revoked - user needs to re-auth
+          if (error.response?.status === 401) {
+            logger.database.warn('Token was revoked - user needs to re-authenticate', {
+              athleteId: member.athleteId
+            });
+          }
+
+          return null;
+        }
+      }
+
+      // Token is still valid
+      logger.database.info('Successfully retrieved valid access token from database', {
+        athleteId: member.athleteId,
+        expiresAt: new Date(tokenData.expires_at * 1000).toISOString()
+      });
+
+      return tokenData.access_token;
     } catch (error) {
-      logger.database.error('Could not decrypt tokens from database', { 
+      logger.database.error('Could not decrypt tokens from database', {
         athleteId: member.athleteId,
         error: error.message
       });

@@ -1,5 +1,7 @@
 const databaseManager = require('../database/DatabaseManager');
 const logger = require('../utils/Logger');
+const { VALIDATION, DATE, RACE_EMOJI } = require('../constants');
+const DateUtils = require('../utils/DateUtils');
 
 class RaceManager {
   constructor() {
@@ -265,24 +267,24 @@ class RaceManager {
   // Helper: Validate distance
   _validateDistance(distanceKm) {
     if (!distanceKm) return;
-    
+
     const distance = Number.parseFloat(distanceKm);
-    if (Number.isNaN(distance) || distance <= 0) {
+    if (Number.isNaN(distance) || distance <= VALIDATION.MIN_DISTANCE) {
       throw new TypeError('Distance must be a positive number');
     }
-    if (distance > 1000) {
-      throw new TypeError('Distance cannot exceed 1000km');
+    if (distance > VALIDATION.MAX_DISTANCE) {
+      throw new TypeError(`Distance cannot exceed ${VALIDATION.MAX_DISTANCE}km`);
     }
   }
 
   // Helper: Validate field lengths
   _validateFieldLengths(raceData) {
     const validations = [
-      { field: 'name', maxLength: 100, label: 'Race name' },
-      { field: 'distance', maxLength: 20, label: 'Distance' },
-      { field: 'location', maxLength: 100, label: 'Location' },
-      { field: 'notes', maxLength: 500, label: 'Notes' },
-      { field: 'goalTime', maxLength: 20, label: 'Goal time' }
+      { field: 'name', maxLength: VALIDATION.MAX_NAME_LENGTH, label: 'Race name' },
+      { field: 'distance', maxLength: VALIDATION.MAX_DISTANCE_STRING_LENGTH, label: 'Distance' },
+      { field: 'location', maxLength: VALIDATION.MAX_LOCATION_LENGTH, label: 'Location' },
+      { field: 'notes', maxLength: VALIDATION.MAX_NOTES_LENGTH, label: 'Notes' },
+      { field: 'goalTime', maxLength: VALIDATION.MAX_GOAL_TIME_LENGTH, label: 'Goal time' }
     ];
 
     for (const { field, maxLength, label } of validations) {
@@ -347,14 +349,7 @@ class RaceManager {
     }
 
     if (includeStatus) {
-      const statusEmojis = {
-        'registered': '📝',
-        'completed': '✅', 
-        'cancelled': '❌',
-        'dns': '🚫', // Did Not Start
-        'dnf': '⚠️'  // Did Not Finish
-      };
-      display += `\n${statusEmojis[race.status] || '❓'} ${race.status.toUpperCase()}`;
+      display += `\n${RACE_EMOJI[race.status] || '❓'} ${race.status.toUpperCase()}`;
     }
 
     if (race.notes) {
@@ -366,14 +361,7 @@ class RaceManager {
 
   // Get race status emoji
   getStatusEmoji(status) {
-    const statusEmojis = {
-      'registered': '📝',
-      'completed': '✅',
-      'cancelled': '❌',
-      'dns': '🚫',
-      'dnf': '⚠️'
-    };
-    return statusEmojis[status] || '❓';
+    return RACE_EMOJI[status] || '❓';
   }
 
   // Check if race date is in the future
@@ -462,7 +450,7 @@ class RaceManager {
   getWeekStart() {
     const now = new Date();
     const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+    const diff = now.getDate() - day + (day === DATE.SUNDAY ? DATE.WEEK_ADJUSTMENT_SUNDAY : DATE.WEEK_ADJUSTMENT_OTHER); // Adjust when day is Sunday
     const monday = new Date(now.setDate(diff));
     monday.setHours(0, 0, 0, 0);
     return monday;
@@ -491,7 +479,7 @@ class RaceManager {
 
   // Format date for database query (YYYY-MM-DD)
   formatDateForQuery(date) {
-    return date.toISOString().split('T')[0];
+    return DateUtils.formatDateOnly(date);
   }
 }
 

@@ -7,6 +7,7 @@ const RaceManager = require('../managers/RaceManager');
 const config = require('../../config/config');
 const dynamicConfig = require('../../config/dynamicConfig');
 const logger = require('../utils/Logger');
+const { TIME } = require('../constants');
 
 class ActivityProcessor {
   constructor() {
@@ -236,7 +237,7 @@ class ActivityProcessor {
   // Process recent activities for all members (useful for initial sync or recovery)
   async processRecentActivities(hoursBack = 24) {
     const members = await this.memberManager.getAllMembers();
-    const after = Math.floor((Date.now() - (hoursBack * 60 * 60 * 1000)) / 1000);
+    const after = Math.floor((Date.now() - (hoursBack * TIME.MS_PER_HOUR)) / 1000);
     
     logger.activity.info('Processing recent activities', {
       hoursBack,

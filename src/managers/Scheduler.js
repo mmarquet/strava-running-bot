@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../utils/Logger');
+const { DATE } = require('../constants');
 
 class Scheduler {
   constructor(activityProcessor, raceManager) {
@@ -327,7 +328,7 @@ class Scheduler {
   getWeekStart() {
     const now = new Date();
     const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+    const diff = now.getDate() - day + (day === DATE.SUNDAY ? DATE.WEEK_ADJUSTMENT_SUNDAY : DATE.WEEK_ADJUSTMENT_OTHER); // Adjust when day is Sunday
     const monday = new Date(now.setDate(diff));
     monday.setHours(0, 0, 0, 0);
     return monday;
@@ -365,7 +366,7 @@ class Scheduler {
    */
   getWeekStartForDate(date) {
     const day = date.getDay();
-    const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+    const diff = date.getDate() - day + (day === DATE.SUNDAY ? DATE.WEEK_ADJUSTMENT_SUNDAY : DATE.WEEK_ADJUSTMENT_OTHER); // Adjust when day is Sunday
     const monday = new Date(date);
     monday.setDate(diff);
     monday.setHours(0, 0, 0, 0);

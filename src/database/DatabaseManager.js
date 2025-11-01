@@ -7,6 +7,8 @@ const { members, races, migrationLog, settings } = require('./schema');
 const logger = require('../utils/Logger');
 const config = require('../../config/config');
 const SettingsManager = require('../managers/SettingsManager');
+const { ENCRYPTION, TIME } = require('../constants');
+const DateUtils = require('../utils/DateUtils');
 
 class DatabaseManager {
   db = null;
@@ -238,9 +240,9 @@ class DatabaseManager {
     if (tokenData && config.security.encryptionKey) {
       try {
         const crypto = require('node:crypto');
-        const algorithm = 'aes-256-gcm';
+        const algorithm = ENCRYPTION.ALGORITHM;
         const key = Buffer.from(config.security.encryptionKey, 'hex');
-        const iv = crypto.randomBytes(16);
+        const iv = crypto.randomBytes(ENCRYPTION.IV_LENGTH);
 
         const cipher = crypto.createCipheriv(algorithm, key, iv);
         const sensitiveData = JSON.stringify(tokenData);
@@ -422,9 +424,9 @@ class DatabaseManager {
     if (config.security.encryptionKey) {
       try {
         const crypto = require('node:crypto');
-        const algorithm = 'aes-256-gcm';
+        const algorithm = ENCRYPTION.ALGORITHM;
         const key = Buffer.from(config.security.encryptionKey, 'hex');
-        const iv = crypto.randomBytes(16);
+        const iv = crypto.randomBytes(ENCRYPTION.IV_LENGTH);
 
         const cipher = crypto.createCipheriv(algorithm, key, iv);
         const sensitiveData = JSON.stringify(tokenData);
@@ -587,9 +589,8 @@ class DatabaseManager {
   async getUpcomingRaces(daysAhead = 30) {
     await this.ensureInitialized();
 
-    const today = new Date().toISOString().split('T')[0];
-    const futureDate = new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000)
-      .toISOString().split('T')[0];
+    const today = DateUtils.getTodayDateString();
+    const futureDate = DateUtils.formatDateOnly(new Date(Date.now() + daysAhead * TIME.MS_PER_DAY));
 
     return await this.db.select()
       .from(races)
@@ -649,7 +650,7 @@ class DatabaseManager {
     const totalRaces = await this.db.select({ count: sql`count(*)` }).from(races);
     const upcomingRaces = await this.db.select({ count: sql`count(*)` }).from(races)
       .where(and(
-        gte(races.race_date, new Date().toISOString().split('T')[0]),
+        gte(races.race_date, DateUtils.getTodayDateString()),
         eq(races.status, 'registered')
       ));
 
@@ -672,9 +673,9 @@ class DatabaseManager {
       return null;
     }
 
-    const algorithm = 'aes-256-gcm';
+    const algorithm = ENCRYPTION.ALGORITHM;
     const key = Buffer.from(config.security.encryptionKey, 'hex');
-    const iv = crypto.randomBytes(16);
+    const iv = crypto.randomBytes(ENCRYPTION.IV_LENGTH);
     
     const cipher = crypto.createCipheriv(algorithm, key, iv);
     
@@ -697,12 +698,12 @@ class DatabaseManager {
     }
 
     try {
-      const algorithm = 'aes-256-gcm';
+      const algorithm = ENCRYPTION.ALGORITHM;
       const key = Buffer.from(config.security.encryptionKey, 'hex');
-      
-      const iv = encryptedBuffer.subarray(0, 16);
-      const authTag = encryptedBuffer.subarray(16, 32);
-      const encrypted = encryptedBuffer.subarray(32);
+
+      const iv = encryptedBuffer.subarray(0, ENCRYPTION.IV_LENGTH);
+      const authTag = encryptedBuffer.subarray(ENCRYPTION.IV_LENGTH, ENCRYPTION.IV_LENGTH + ENCRYPTION.IV_LENGTH);
+      const encrypted = encryptedBuffer.subarray(ENCRYPTION.IV_LENGTH + ENCRYPTION.IV_LENGTH);
       
       const decipher = crypto.createDecipheriv(algorithm, key, iv);
       decipher.setAuthTag(authTag);

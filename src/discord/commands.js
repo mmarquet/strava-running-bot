@@ -4,6 +4,8 @@ const DiscordUtils = require('../utils/DiscordUtils');
 const RaceManager = require('../managers/RaceManager');
 const logger = require('../utils/Logger');
 const config = require('../../config/config');
+const { TIME, DISCORD } = require('../constants');
+const DateUtils = require('../utils/DateUtils');
 
 class DiscordCommands {
   constructor(activityProcessor) {
@@ -753,7 +755,7 @@ class DiscordCommands {
           },
           {
             name: '⏰ Uptime',
-            value: `${Math.floor(stats.uptime / 3600)}h ${Math.floor((stats.uptime % 3600) / 60)}m`,
+            value: `${Math.floor(stats.uptime / TIME.SECONDS_PER_HOUR)}h ${Math.floor((stats.uptime % TIME.SECONDS_PER_HOUR) / 60)}m`,
             inline: true
           },
           {
@@ -1004,7 +1006,7 @@ class DiscordCommands {
                    firstName.includes(searchTerm) ||
                    lastName.includes(searchTerm);
           })
-          .slice(0, 25) // Discord limits to 25 choices
+          .slice(0, DISCORD.MAX_EMBED_FIELDS) // Discord limits to 25 choices
           .map(member => ({
             name: member.discordUser?.displayName || `${member.athlete.firstname} ${member.athlete.lastname}`,
             value: member.discordUser?.displayName || `${member.athlete.firstname} ${member.athlete.lastname}`
@@ -1227,7 +1229,7 @@ class DiscordCommands {
         .addFields([
           {
             name: 'Race Date',
-            value: new Date(removedRace.raceDate + 'T00:00:00').toLocaleDateString(),
+            value: DateUtils.formatForDisplay(removedRace.raceDate),
             inline: true
           },
           {
@@ -1445,7 +1447,7 @@ class DiscordCommands {
       const raceChunks = DiscordUtils.chunkArray(racesWithMembers, 10);
       
       for (const race of raceChunks[0]) {
-        const raceDate = new Date(race.race_date + 'T00:00:00').toLocaleDateString();
+        const raceDate = DateUtils.formatForDisplay(race.race_date);
         const distanceInfo = race.distance ? ` • 📏 ${race.distance}` : '';
         const locationInfo = race.location ? ` • 📍 ${race.location}` : '';
         const statusEmoji = this.raceManager.getStatusEmoji(race.status);
@@ -1796,7 +1798,7 @@ class DiscordCommands {
       // Other settings
       const otherSettings = Object.entries(allSettings)
         .filter(([key]) => key !== 'discord_channel_id')
-        .slice(0, 10); // Limit to prevent embed overflow
+        .slice(0, DISCORD.ITEMS_PER_PAGE); // Limit to prevent embed overflow
 
       if (otherSettings.length > 0) {
         const settingsText = otherSettings

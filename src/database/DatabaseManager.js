@@ -301,7 +301,7 @@ class DatabaseManager {
       registeredAt: newMember.registeredAt,
       discordUsername: memberData.discord_username,
       discordDisplayName: memberData.discord_display_name
-      });
+    });
 
     return newMember;
   }
@@ -409,12 +409,13 @@ class DatabaseManager {
     return transaction();
   }
 
-  async updateTokens(athleteId, tokenData) {
+  async updateTokens(athleteId, _tokenData) {
     await this.ensureInitialized();
 
-    // In the simplified schema, we don't store encrypted tokens
-    // This would require re-authentication through OAuth
-    logger.database?.info('Token update requested - re-authentication required', {
+    // TODO: Implement token update with encryption
+    // Currently tokens are only saved during initial registration
+    // This method is called by token auto-refresh (Bug #49 - not yet implemented)
+    logger.database?.info('Token update requested - not yet implemented', {
       athleteId
     });
 

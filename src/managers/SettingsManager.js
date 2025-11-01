@@ -1,4 +1,4 @@
-const { eq, sql } = require('drizzle-orm');
+const { eq } = require('drizzle-orm');
 const { settings } = require('../database/schema');
 const logger = require('../utils/Logger');
 

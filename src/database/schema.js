@@ -1,4 +1,4 @@
-const { sqliteTable, text, integer, blob, index } = require('drizzle-orm/sqlite-core');
+const { sqliteTable, text, integer } = require('drizzle-orm/sqlite-core');
 const { sql } = require('drizzle-orm');
 
 // Members table - complete structure with Discord user data and encrypted tokens
@@ -24,11 +24,13 @@ const members = sqliteTable('members', {
 });
 
 // Indexes for members table
-const memberDiscordIdIdx = index('member_discord_idx').on(members.discord_id);
-const memberAthleteIdIdx = index('member_athlete_idx').on(members.athlete_id);
-const memberDiscordUsernameIdx = index('member_discord_username_idx').on(members.discord_username);
-const memberDiscordDisplayNameIdx = index('member_discord_display_name_idx').on(members.discord_display_name);
-const memberRegisteredAtIdx = index('member_registered_at_idx').on(members.registered_at);
+// Note: These index definitions are kept for reference but not actively used in queries yet
+// They can be enabled in future migrations if query performance requires them
+// index('member_discord_idx').on(members.discord_id);
+// index('member_athlete_idx').on(members.athlete_id);
+// index('member_discord_username_idx').on(members.discord_username);
+// index('member_discord_display_name_idx').on(members.discord_display_name);
+// index('member_registered_at_idx').on(members.registered_at);
 
 // Races table - enhanced with road/trail types
 const races = sqliteTable('races', {
@@ -51,9 +53,11 @@ const races = sqliteTable('races', {
 });
 
 // Indexes for races table
-const raceMemberIdx = index('race_member_idx').on(races.member_athlete_id);
-const raceDateIdx = index('race_date_idx').on(races.race_date);
-const raceTypeIdx = index('race_type_idx').on(races.race_type);
+// Note: These index definitions are kept for reference but not actively used in queries yet
+// They can be enabled in future migrations if query performance requires them
+// index('race_member_idx').on(races.member_athlete_id);
+// index('race_date_idx').on(races.race_date);
+// index('race_type_idx').on(races.race_type);
 
 // Migration log table - track migration status
 const migrationLog = sqliteTable('migration_log', {

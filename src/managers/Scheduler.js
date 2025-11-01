@@ -1,7 +1,6 @@
 const cron = require('node-cron');
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../utils/Logger');
-const DiscordUtils = require('../utils/DiscordUtils');
 
 class Scheduler {
   constructor(activityProcessor, raceManager) {

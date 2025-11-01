@@ -430,7 +430,7 @@ class DiscordCommands {
       const memberStats = await this.activityProcessor.memberManager.getStats();
       
       // Load Discord user data from JSON fallback for missing guild cache
-      let jsonMemberData = {};
+      const jsonMemberData = {};
       try {
         const fs = require('node:fs').promises;
         const path = require('node:path');
@@ -837,7 +837,7 @@ class DiscordCommands {
       }
 
       // Load JSON member data for Discord name fallback
-      let jsonMemberData = {};
+      const jsonMemberData = {};
       try {
         const fs = require('node:fs').promises;
         const path = require('node:path');
@@ -880,7 +880,7 @@ class DiscordCommands {
         const memberName = getDiscordName(member);
         await interaction.editReply({
           content: `❌ **${memberName}** needs to re-authorize with Strava to view their activities.\n` +
-                   `Please use the \`/register\` command to reconnect your Strava account.`,
+                   'Please use the `/register` command to reconnect your Strava account.',
         });
         return;
       }

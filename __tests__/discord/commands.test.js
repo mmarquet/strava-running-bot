@@ -602,9 +602,9 @@ describe('DiscordCommands', () => {
 
       await discordCommands.handleRegisterCommand(mockInteraction);
 
-      expect(mockInteraction.reply).toHaveBeenCalledWith({
-        embeds: [expect.any(Object)],
-        ephemeral: true
+      expect(mockInteraction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        embeds: [expect.any(Object)]
       });
     });
 
@@ -613,9 +613,9 @@ describe('DiscordCommands', () => {
 
       await discordCommands.handleRegisterCommand(mockInteraction);
 
-      expect(mockInteraction.reply).toHaveBeenCalledWith({
-        content: '✅ You\'re already registered as **Test User**.',
-        ephemeral: true
+      expect(mockInteraction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: '✅ You\'re already registered as **Test User**.'
       });
     });
 
@@ -628,9 +628,9 @@ describe('DiscordCommands', () => {
 
       await discordCommands.handleRegisterCommand(mockInteraction);
 
-      expect(mockInteraction.reply).toHaveBeenCalledWith({
-        content: '✅ You\'re already registered as **John Doe**.',
-        ephemeral: true
+      expect(mockInteraction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: '✅ You\'re already registered as **John Doe**.'
       });
     });
   });

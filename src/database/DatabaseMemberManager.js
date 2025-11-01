@@ -1,5 +1,6 @@
 const databaseManager = require('../database/DatabaseManager');
 const logger = require('../utils/Logger');
+const { ENCRYPTION } = require('../constants');
 
 /**
  * Database-backed MemberManager - Drop-in replacement for the JSON-based MemberManager
@@ -87,7 +88,7 @@ class DatabaseMemberManager {
       return null;
     }
 
-    const algorithm = 'aes-256-gcm';
+    const algorithm = ENCRYPTION.ALGORITHM;
     const key = Buffer.from(config.security.encryptionKey, 'hex');
     const iv = Buffer.from(encryptedTokens.iv, 'hex');
     const authTag = Buffer.from(encryptedTokens.authTag, 'hex');

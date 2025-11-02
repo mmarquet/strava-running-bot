@@ -1,5 +1,5 @@
 const express = require('express');
-const path = require('path');
+const path = require('node:path');
 const config = require('../../config/config');
 const logger = require('../utils/Logger');
 
@@ -290,11 +290,34 @@ class WebhookServer {
       try {
         if (this.activityProcessor.discordBot?.client) {
           discordUser = await this.activityProcessor.discordBot.client.users.fetch(discordUserId);
+
+          // DEBUG: Log all Discord user properties
+          if (discordUser) {
+            logger.discord.info('Discord user fetched successfully', {
+              discordUserId,
+              username: discordUser.username,
+              globalName: discordUser.globalName,
+              displayName: discordUser.displayName,
+              tag: discordUser.tag,
+              discriminator: discordUser.discriminator,
+              bot: discordUser.bot,
+              system: discordUser.system,
+              allKeys: Object.keys(discordUser)
+            });
+          } else {
+            logger.discord.warn('Discord user fetch returned null', { discordUserId });
+          }
+        } else {
+          logger.discord.warn('Discord bot client not available', {
+            hasBot: !!this.activityProcessor.discordBot,
+            hasClient: !!this.activityProcessor.discordBot?.client
+          });
         }
       } catch (error) {
         logger.discord.warn('Could not fetch Discord user info', {
           discordUserId,
-          error: error.message
+          error: error.message,
+          stack: error.stack
         });
       }
 

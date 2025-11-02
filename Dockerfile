@@ -1,37 +1,40 @@
-# Use Node.js 24 Alpine for smaller image size
-FROM node:24-alpine
+# Use latest Node.js 24 LTS 
+FROM node:24-bullseye-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install additional packages (dumb-init, curl, su-exec)
-RUN apk add --no-cache \
+# Install runtime dependencies only (no build tools needed!)
+RUN apt-get update && apt-get install -y \
     dumb-init \
     curl \
-    su-exec \
-    && rm -rf /var/cache/apk/*
+    sqlite3 \
+    gosu \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy package files first for better Docker layer caching
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production && \
+# Install dependencies - no compilation needed with native SQLite!
+RUN npm ci --omit=dev && \
     npm cache clean --force
 
 # Create non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S botuser -u 1001 -G nodejs
+RUN groupadd --gid 1001 nodejs && \
+    useradd --uid 1001 --gid nodejs --shell /bin/bash --create-home botuser
 
 # Create data directory and set safe default ownership (will be enforced at container start)
 RUN mkdir -p /app/data && \
     chown -R botuser:nodejs /app
 
-# Copy application code
-COPY --chown=botuser:nodejs . .
+# Copy application source code (excluding items in .dockerignore)
+COPY --chown=botuser:nodejs src/ ./src/
+COPY --chown=botuser:nodejs config/ ./config/
+COPY --chown=botuser:nodejs utils/ ./utils/
 
 # Add entrypoint script that ensures data folder exists and is owned by botuser, then drops to botuser
 RUN cat > /usr/local/bin/entrypoint.sh <<'EOF'
-#!/bin/sh
+#!/bin/bash
 set -e
 
 # Ensure data directory exists and set proper ownership
@@ -40,13 +43,19 @@ if ! chown -R botuser:nodejs /app/data; then
     echo "Warning: Could not set data directory ownership" >&2
 fi
 
+# Run database migration on startup
+echo "Running database migration..."
+if ! gosu botuser node src/database/migrate.js; then
+    echo "Warning: Database migration failed" >&2
+fi
+
 # If first arg starts with '-' assume it's flags for npm start
 if [ "${1#-}" != "$1" ]; then
   set -- npm start "$@"
 fi
 
 # Exec the given command as botuser
-exec su-exec botuser "$@"
+exec gosu botuser "$@"
 EOF
 
 RUN chmod +x /usr/local/bin/entrypoint.sh

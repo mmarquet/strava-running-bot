@@ -1,9 +1,10 @@
-const fs = require('fs').promises;
-const path = require('path');
-const crypto = require('crypto');
+const fs = require('node:fs').promises;
+const path = require('node:path');
 const config = require('../../config/config');
 const StravaAPI = require('../strava/api');
 const logger = require('../utils/Logger');
+const EncryptionUtils = require('../utils/EncryptionUtils');
+const { TIME } = require('../constants');
 
 class MemberManager {
   constructor() {
@@ -407,7 +408,7 @@ class MemberManager {
     const now = Math.floor(Date.now() / 1000);
     
     // Check if token is still valid (expires 1 hour before actual expiry for safety)
-    if (member.tokens.expires_at && member.tokens.expires_at > (now + 3600)) {
+    if (member.tokens.expires_at && member.tokens.expires_at > (now + TIME.SECONDS_PER_HOUR)) {
       return member.tokens.access_token;
     }
 
@@ -663,25 +664,11 @@ class MemberManager {
       return member; // Return unencrypted if no key
     }
 
-    const algorithm = 'aes-256-gcm';
-    const key = Buffer.from(config.security.encryptionKey, 'hex');
-    const iv = crypto.randomBytes(16);
-    
-    const cipher = crypto.createCipheriv(algorithm, key, iv);
-    
-    const sensitiveData = JSON.stringify(member.tokens);
-    let encrypted = cipher.update(sensitiveData, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    
-    const authTag = cipher.getAuthTag();
-    
+    const encryptedTokens = EncryptionUtils.encryptTokens(member.tokens);
+
     return {
       ...member,
-      tokens: {
-        encrypted: encrypted,
-        iv: iv.toString('hex'),
-        authTag: authTag.toString('hex')
-      }
+      tokens: encryptedTokens || member.tokens
     };
   }
 
@@ -691,22 +678,15 @@ class MemberManager {
       return encryptedMember; // Return as-is if not encrypted
     }
 
-    const algorithm = 'aes-256-gcm';
-    const key = Buffer.from(config.security.encryptionKey, 'hex');
-    const iv = Buffer.from(encryptedMember.tokens.iv, 'hex');
-    const authTag = Buffer.from(encryptedMember.tokens.authTag, 'hex');
-    
-    const decipher = crypto.createDecipheriv(algorithm, key, iv);
-    decipher.setAuthTag(authTag);
-    
-    let decrypted = decipher.update(encryptedMember.tokens.encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    
-    const tokens = JSON.parse(decrypted);
-    
+    const decryptedTokens = EncryptionUtils.decryptTokens(encryptedMember.tokens);
+
+    if (!decryptedTokens) {
+      throw new Error('Failed to decrypt member tokens');
+    }
+
     return {
       ...encryptedMember,
-      tokens: tokens
+      tokens: decryptedTokens
     };
   }
 
@@ -776,7 +756,7 @@ class MemberManager {
       inactive: inactiveMembers.length,
       recentRegistrations: members.filter(m => {
         const registeredAt = new Date(m.registeredAt);
-        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const weekAgo = new Date(Date.now() - 7 * TIME.MS_PER_DAY);
         return registeredAt > weekAgo;
       }).length
     };

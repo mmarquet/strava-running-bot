@@ -35,8 +35,31 @@ jest.mock('discord.js', () => {
               setName: jest.fn().mockReturnThis(),
               setDescription: jest.fn().mockReturnThis(),
               setRequired: jest.fn().mockReturnThis(),
-              setAutocomplete: jest.fn().mockReturnThis(),
-              addChoices: jest.fn().mockReturnThis()
+              setMaxLength: jest.fn().mockReturnThis(),
+              addChoices: jest.fn().mockReturnThis(),
+              setAutocomplete: jest.fn().mockReturnThis()
+            };
+            optionCallback(option);
+            subcommand.options.push(option);
+            return subcommand;
+          }),
+          addIntegerOption: jest.fn().mockImplementation((optionCallback) => {
+            const option = {
+              setName: jest.fn().mockReturnThis(),
+              setDescription: jest.fn().mockReturnThis(),
+              setRequired: jest.fn().mockReturnThis(),
+              setMinValue: jest.fn().mockReturnThis(),
+              setMaxValue: jest.fn().mockReturnThis()
+            };
+            optionCallback(option);
+            subcommand.options.push(option);
+            return subcommand;
+          }),
+          addChannelOption: jest.fn().mockImplementation((optionCallback) => {
+            const option = {
+              setName: jest.fn().mockReturnThis(),
+              setDescription: jest.fn().mockReturnThis(),
+              setRequired: jest.fn().mockReturnThis()
             };
             optionCallback(option);
             subcommand.options.push(option);
@@ -53,6 +76,8 @@ jest.mock('discord.js', () => {
           setName: jest.fn().mockReturnThis(),
           setDescription: jest.fn().mockReturnThis(),
           setRequired: jest.fn().mockReturnThis(),
+          setMaxLength: jest.fn().mockReturnThis(),
+          addChoices: jest.fn().mockReturnThis(),
           setAutocomplete: jest.fn().mockImplementation((auto) => {
             option.autocomplete = auto;
             return option;
@@ -99,7 +124,8 @@ jest.mock('../../src/utils/Logger', () => ({
   discord: {
     info: jest.fn(),
     error: jest.fn(),
-    warn: jest.fn()
+    warn: jest.fn(),
+    debug: jest.fn()
   }
 }));
 jest.mock('../../config/config', () => ({
@@ -117,6 +143,7 @@ describe('DiscordCommands', () => {
 
   const mockMember = {
     discordUserId: '123456789',
+    athleteId: 12345,
     discordUser: {
       displayName: 'Test User',
       username: 'testuser'
@@ -234,7 +261,7 @@ describe('DiscordCommands', () => {
     it('should return array of slash commands', () => {
       const commands = discordCommands.getCommands();
 
-      expect(commands).toHaveLength(4);
+      expect(commands).toHaveLength(8); // members, register, botstatus, last, race, teamraces, settings, scheduler
       expect(commands.every(cmd => cmd instanceof SlashCommandBuilder)).toBe(true);
     });
 
@@ -373,7 +400,7 @@ describe('DiscordCommands', () => {
   describe('listMembers', () => {
     beforeEach(() => {
       mockMemberManager.getAllMembers.mockResolvedValue([mockMember]);
-      mockMemberManager.getStats.mockReturnValue({ active: 1, inactive: 0, total: 1 });
+      mockMemberManager.getStats.mockResolvedValue({ active: 1, inactive: 0, total: 1 });
     });
 
     it('should list members successfully', async () => {
@@ -411,7 +438,7 @@ describe('DiscordCommands', () => {
     });
 
     it('should chunk large member lists', async () => {
-      const manyMembers = Array(15).fill(mockMember);
+      const manyMembers = new Array(15).fill(mockMember);
       mockMemberManager.getAllMembers.mockResolvedValue(manyMembers);
       DiscordUtils.chunkArray.mockReturnValue([manyMembers.slice(0, 10)]);
 
@@ -745,9 +772,7 @@ describe('DiscordCommands', () => {
     beforeEach(() => {
       mockInteraction.options.getString.mockReturnValue('<@123456789>');
       DiscordUtils.extractUserId.mockReturnValue('123456789');
-      // Mock the Map methods properly
-      mockActivityProcessor.memberManager.discordToStrava = new Map([['123456789', '12345']]);
-      mockActivityProcessor.memberManager.members = new Map([['12345', mockMember]]);
+      mockMemberManager.getMemberByDiscordId.mockResolvedValue(mockMember);
     });
 
     it('should reactivate member successfully', async () => {
@@ -755,6 +780,7 @@ describe('DiscordCommands', () => {
 
       await discordCommands.reactivateMember(mockInteraction, mockInteraction.options);
 
+      expect(mockMemberManager.getMemberByDiscordId).toHaveBeenCalledWith('123456789');
       expect(mockMemberManager.reactivateMember).toHaveBeenCalledWith(12345);
       expect(mockInteraction.editReply).toHaveBeenCalledWith({
         embeds: [expect.any(Object)]
@@ -762,7 +788,7 @@ describe('DiscordCommands', () => {
     });
 
     it('should handle non-existent member', async () => {
-      mockActivityProcessor.memberManager.discordToStrava = new Map(); // Empty map
+      mockMemberManager.getMemberByDiscordId.mockResolvedValue(null);
 
       await discordCommands.reactivateMember(mockInteraction, mockInteraction.options);
 
@@ -777,6 +803,8 @@ describe('DiscordCommands', () => {
 
       await discordCommands.reactivateMember(mockInteraction, mockInteraction.options);
 
+      expect(mockMemberManager.getMemberByDiscordId).toHaveBeenCalledWith('123456789');
+      expect(mockMemberManager.reactivateMember).toHaveBeenCalledWith(12345);
       expect(mockInteraction.editReply).toHaveBeenCalledWith({
         content: '❌ Failed to reactivate member.',
         ephemeral: true
@@ -790,9 +818,9 @@ describe('DiscordCommands', () => {
 
       await discordCommands.handleRegisterCommand(mockInteraction);
 
-      expect(mockInteraction.reply).toHaveBeenCalledWith({
-        embeds: [expect.any(Object)],
-        ephemeral: true
+      expect(mockInteraction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        embeds: [expect.any(Object)]
       });
     });
 
@@ -801,9 +829,9 @@ describe('DiscordCommands', () => {
 
       await discordCommands.handleRegisterCommand(mockInteraction);
 
-      expect(mockInteraction.reply).toHaveBeenCalledWith({
-        content: '✅ You\'re already registered as **Test User**.',
-        ephemeral: true
+      expect(mockInteraction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: '✅ You\'re already registered as **Test User**.'
       });
     });
 
@@ -816,9 +844,9 @@ describe('DiscordCommands', () => {
 
       await discordCommands.handleRegisterCommand(mockInteraction);
 
-      expect(mockInteraction.reply).toHaveBeenCalledWith({
-        content: '✅ You\'re already registered as **John Doe**.',
-        ephemeral: true
+      expect(mockInteraction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: '✅ You\'re already registered as **John Doe**.'
       });
     });
   });
@@ -872,14 +900,22 @@ describe('DiscordCommands', () => {
   });
 
   describe('handleLastActivityCommand', () => {
+    let findMemberSpy;
+
     beforeEach(() => {
       mockInteraction.options.getString.mockReturnValue('Test User');
-      jest.spyOn(discordCommands, 'findMemberByInput').mockResolvedValue(mockMember);
+      findMemberSpy = jest.spyOn(discordCommands, 'findMemberByInput').mockResolvedValue(mockMember);
       mockMemberManager.getValidAccessToken.mockResolvedValue('valid_token');
       mockStravaAPI.getAthleteActivities.mockResolvedValue([mockActivity]);
       mockStravaAPI.getActivity.mockResolvedValue(mockActivity);
       mockStravaAPI.shouldPostActivity.mockReturnValue(true);
       mockStravaAPI.processActivityWithStreams.mockResolvedValue(mockActivity);
+    });
+
+    afterEach(() => {
+      if (findMemberSpy) {
+        findMemberSpy.mockRestore();
+      }
     });
 
     it('should display member\'s last activity successfully', async () => {
@@ -896,7 +932,7 @@ describe('DiscordCommands', () => {
     });
 
     it('should handle member not found', async () => {
-      jest.spyOn(discordCommands, 'findMemberByInput').mockResolvedValue(null);
+      findMemberSpy.mockResolvedValue(null);
 
       await discordCommands.handleLastActivityCommand(mockInteraction, mockInteraction.options);
 
@@ -911,7 +947,8 @@ describe('DiscordCommands', () => {
       await discordCommands.handleLastActivityCommand(mockInteraction, mockInteraction.options);
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: '❌ Unable to access activities for **Test User**. They may need to re-authorize.'
+        content: '❌ **Test User** needs to re-authorize with Strava to view their activities.\n' +
+                 'Please use the `/register` command to reconnect your Strava account.'
       });
     });
 
@@ -1053,7 +1090,7 @@ describe('DiscordCommands', () => {
     });
 
     it('should limit choices to 25 items', async () => {
-      const manyMembers = Array(30).fill(0).map((_, i) => ({
+      const manyMembers = new Array(30).fill(0).map((_, i) => ({
         ...mockMember,
         athlete: { ...mockMember.athlete, id: i, firstname: `User${i}`, lastname: 'Test' },
         discordUser: { displayName: `User${i} Test` }

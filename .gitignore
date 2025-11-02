@@ -28,17 +28,32 @@ coverage/
 logs
 *.log
 
-# Data storage (consolidated to avoid redundancy)
+# Database files
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
+
+# Data storage and runtime files
 data/
+temp/
+tmp/
+cache/
+
+# JSON data files (runtime generated)
+*.data.json
 members.json
 
-# Runtime data
-tmp/
-temp/
+# Drizzle migration metadata (auto-generated)
+src/database/migrations/meta/
+drizzle/
+*.sql.disabled
 
-# Data files
-data/*.json
-data/*.db
+# Demo and test files
+demo-*.js
+test-*.js
+*.demo.js
 
 # OS generated files
 .DS_Store
@@ -54,9 +69,29 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+*~
 
-# Local docs
+# Local docs and reviews
 Code_Review.md
 
-# Local sonar folder
+# SonarQube
 .scannerwork/
+sonar-project.properties.local
+sonar-report.txt
+.sonarlint/
+
+# Docker volumes
+volumes/
+
+# Backup files
+*.backup
+*.bak
+*.old
+
+# Test artifacts
+test-results/
+.nyc_output/
+
+# Build artifacts
+build/
+dist/

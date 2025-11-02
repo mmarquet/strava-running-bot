@@ -1,11 +1,27 @@
 # Strava Running Bot 🏃‍♂️
 
-A comprehensive Discord bot that automatically posts Strava activities from your running team members to a dedicated Discord channel. Built with real-time webhooks, rich activity displays, and complete team management functionality.
+A comprehensive### 🏆 **Race Management System**
+
+- **Enhanced Race Planning**: Add upcoming races with road/trail categorization
+- **Smart Distance Presets**: Quick selection for 5K, 10K, Half Marathon, Marathon
+- **Custom Distances**: Flexible distance input for trail races and non-standard events
+- **Race Tracking**: Monitor race status (registered, completed, cancelled, DNS, DNF)
+- **Team Calendar**: View upcoming races for all team members
+- **Public Announcements**: Race additions are shared with the entire team
+
+### 📅 **Automated Race Announcements**
+
+- **Weekly Summaries**: Automatic posts every Monday at 8:00 AM UTC with the week's races
+- **Monthly Overviews**: First-of-month announcements with all races for the month
+- **Smart Formatting**: Races grouped by date with member names and race details
+- **Configurable Scheduling**: Customizable timing and timezone settings
+- **Manual Triggers**: Admin commands to test and manually trigger announcements bot that automatically posts Strava activities from your running team members to a dedicated Discord channel. Built with real-time webhooks, rich activity displays, complete team management functionality, and an advanced race management system for tracking your team's upcoming events.
 
 ![Discord Bot](https://img.shields.io/badge/Discord-Bot-5865F2?style=for-the-badge&logo=discord&logoColor=white)
 ![Strava](https://img.shields.io/badge/Strava-API-FC4C02?style=for-the-badge&logo=strava&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js-LTS-339933?style=for-the-badge&logo=node.js&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=for-the-badge&logo=node.js&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-Database-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
 
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=mmarquet_strava-running-bot&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=mmarquet_strava-running-bot)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=mmarquet_strava-running-bot&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=mmarquet_strava-running-bot)
@@ -40,11 +56,21 @@ A comprehensive Discord bot that automatically posts Strava activities from your
 - Discord slash commands for easy team management
 - Web-based registration system
 
-### 🎮 **Discord Integration**
+### � **Race Management System**
 
-- **Slash Commands**: `/members`, `/register`, `/last`, `/botstatus`
+- **Enhanced Race Planning**: Add upcoming races with road/trail categorization
+- **Smart Distance Presets**: Quick selection for 5K, 10K, Half Marathon, Marathon
+- **Custom Distances**: Flexible distance input for trail races and non-standard events
+- **Race Tracking**: Monitor race status (registered, completed, cancelled, DNS, DNF)
+- **Team Calendar**: View upcoming races for all team members
+- **Public Announcements**: Race additions are shared with the entire team
+
+### �🎮 **Discord Integration**
+
+- **Slash Commands**: `/members`, `/register`, `/last`, `/botstatus`, `/my-races`, `/all-races`
 - **Member Management**: Add, remove, activate/deactivate members
 - **Activity Lookup**: View any member's latest activity on-demand
+- **Race Management**: Complete race lifecycle management with team visibility
 - **Admin Controls**: Permission-based management commands
 - **Autocomplete**: Smart member name suggestions
 
@@ -60,7 +86,7 @@ A comprehensive Discord bot that automatically posts Strava activities from your
 
 ### Prerequisites
 
-- Node.js (check package.json for the exact version as its subject to change in the future)
+- Node.js 24 or higher (check package.json for the exact version as it's subject to change in the future)
 - Discord bot token and server permissions
 - Strava API application credentials
 - Public domain/server for webhooks (production only)
@@ -281,6 +307,16 @@ node utils/setup.js validate-webhook
 | `/register` | Register yourself with Strava | `/register` |
 | `/last` | Show last activity from a member | `/last member: John` |
 
+### Race Management Commands
+
+| Command | Description | Usage |
+|---------|-------------|-------|
+| `/my-races add` | Add an upcoming race | `/my-races add name: "Marathon" date: 21-04-2025 race_type: road distance_preset: Marathon` |
+| `/my-races list` | List your races | `/my-races list` or `/my-races list status: registered` |
+| `/my-races remove` | Remove a race | `/my-races remove race_id: 5` |
+| `/my-races update` | Update race details | `/my-races update race_id: 5 status: completed` |
+| `/my-races upcoming` | Show upcoming races for all members | `/my-races upcoming days: 30` |
+
 ### Admin Commands (Manage Server Permission Required)
 
 | Command | Description | Usage |
@@ -290,6 +326,51 @@ node utils/setup.js validate-webhook
 | `/members deactivate` | Temporarily deactivate a member | `/members deactivate user: @user` |
 | `/members reactivate` | Reactivate a deactivated member | `/members reactivate user: @user` |
 | `/botstatus` | Show bot statistics and health | `/botstatus` |
+| `/all-races list` | List all team races | `/all-races list` or `/all-races list status: upcoming` |
+| `/all-races upcoming` | Show upcoming races for all members | `/all-races upcoming days: 60` |
+| `/scheduler weekly` | Manually trigger weekly race announcement | `/scheduler weekly` |
+| `/scheduler monthly` | Manually trigger monthly race announcement | `/scheduler monthly` |
+| `/scheduler status` | Show scheduler status and upcoming races | `/scheduler status` |
+
+### Race Management Features
+
+#### **Race Types**
+- **Road Race**: Traditional road running events with standard distance presets
+- **Trail Race**: Off-road events with custom distance input
+
+#### **Distance Presets (Road Races)**
+- **5K**: 5 kilometers
+- **10K**: 10 kilometers  
+- **Half Marathon**: 21.1 kilometers
+- **Marathon**: 42.2 kilometers
+- **Other**: Custom distance input
+
+#### **Race Status Tracking**
+- **Registered**: Signed up for the race
+- **Completed**: Race finished successfully
+- **Cancelled**: Race was cancelled
+- **DNS**: Did Not Start
+- **DNF**: Did Not Finish
+
+### **Automated Scheduling Features**
+
+#### **Weekly Race Announcements**
+- **Schedule**: Every Monday at 8:00 AM UTC
+- **Content**: All registered races for the current week (Monday-Sunday)
+- **Format**: Grouped by date with race details and participant names
+- **Smart Display**: Shows "Today", "Tomorrow", or days remaining
+
+#### **Monthly Race Announcements**  
+- **Schedule**: First day of each month at 8:00 AM UTC
+- **Content**: All registered races for the current month
+- **Format**: Organized by week with comprehensive race information
+- **Statistics**: Total races and participating members count
+
+#### **Configuration Options**
+- **Enable/Disable**: Toggle weekly and monthly announcements independently
+- **Custom Scheduling**: Modify timing using cron expressions
+- **Timezone Support**: Configure announcements for your local timezone
+- **Manual Testing**: Admin commands to trigger announcements on-demand
 
 ## 🌐 API Endpoints
 
@@ -330,6 +411,12 @@ curl http://localhost:3000/health
 ```text
 strava-running-bot/
 ├── src/
+│   ├── database/
+│   │   ├── connection.js       # SQLite database connection
+│   │   ├── DatabaseManager.js  # Database operations manager
+│   │   └── migrations/         # Database schema migrations
+│   │       ├── 001_initial_schema.sql
+│   │       └── 002_add_race_type_distance.sql
 │   ├── discord/
 │   │   ├── bot.js              # Discord bot implementation
 │   │   └── commands.js         # Slash command handlers
@@ -340,7 +427,8 @@ strava-running-bot/
 │   ├── processors/
 │   │   └── ActivityProcessor.js # Main activity processing logic
 │   ├── managers/
-│   │   └── MemberManager.js    # Team member management
+│   │   ├── MemberManager.js    # Team member management
+│   │   └── RaceManager.js      # Race management system
 │   ├── utils/
 │   │   ├── ActivityFormatter.js # Activity data formatting
 │   │   ├── DiscordUtils.js     # Discord utility functions
@@ -352,7 +440,7 @@ strava-running-bot/
 │   └── config.js               # Configuration management
 ├── utils/
 │   └── setup.js                # Setup and management utilities
-├── data/                       # Member data storage (encrypted)
+├── data/                       # Database and member data storage
 ├── logs/                       # Application logs
 ├── .env.example                # Environment variables template
 ├── docker/
@@ -389,11 +477,35 @@ strava-running-bot/
 
 #### **MemberManager**
 
-- Secure member data storage with AES-256 encryption
-- JSON-based persistent storage with atomic writes
+- Secure member data storage with SQLite database
+- JSON-to-SQLite migration support for existing installations
 - Token management with automatic refresh
 - Member lifecycle operations (register/deactivate/remove)
 - Discord user mapping and profile integration
+
+#### **RaceManager**
+
+- Complete race lifecycle management system
+- Road and trail race categorization with smart distance handling
+- Standard distance presets (5K, 10K, Half Marathon, Marathon)
+- Custom distance support for trail races and special events
+- Race status tracking and team calendar functionality
+- Public race announcements for team engagement
+
+#### **Scheduler**
+
+- **Automated Race Announcements**: Cron-based scheduling for weekly and monthly race summaries
+- **Configurable Timing**: Customizable schedule patterns with timezone support
+- **Smart Race Grouping**: Intelligent organization of races by date and week
+- **Discord Integration**: Direct posting to team channel with rich embedded announcements
+- **Manual Triggers**: Admin testing capabilities with instant announcement generation
+#### **DatabaseManager**
+
+- SQLite database with automatic migrations
+- Snake_case field naming for SQL compatibility
+- Atomic operations with proper transaction handling
+- Schema evolution support with migration tracking
+- Data integrity and foreign key constraints
 
 #### **WebhookServer**
 
@@ -428,9 +540,39 @@ strava-running-bot/
 | `NODE_ENV` | ❌ | Environment mode | `development` |
 | `LOG_LEVEL` | ❌ | Logging level (DEBUG, INFO, WARN, ERROR) | `INFO` |
 | `POST_DELAY_MINUTES` | ❌ | Delay before posting activities (minutes) | `15` |
-| `GOOGLE_MAPS_API_KEY` | ❌ | Google Maps API key for route visualization | - |
+| `SCHEDULER_TIMEZONE` | ❌ | Timezone for race announcements | `UTC` |
+| `WEEKLY_RACE_ANNOUNCEMENTS` | ❌ | Enable weekly race announcements | `true` |
+| `MONTHLY_RACE_ANNOUNCEMENTS` | ❌ | Enable monthly race announcements | `true` |
+| `WEEKLY_SCHEDULE` | ❌ | Cron pattern for weekly announcements | `0 8 * * 1` (Mon 8AM) |
+| `MONTHLY_SCHEDULE` | ❌ | Cron pattern for monthly announcements | `0 8 1 * *` (1st 8AM) |
 
 > **Note**: `BASE_URL` is required for production deployments but optional for local development.
+
+### Scheduling Configuration
+
+The race announcement scheduler can be customized through environment variables:
+
+```env
+# Enable/disable automated announcements
+WEEKLY_RACE_ANNOUNCEMENTS=true
+MONTHLY_RACE_ANNOUNCEMENTS=true
+
+# Customize announcement timing (cron format)
+WEEKLY_SCHEDULE="0 8 * * 1"     # Every Monday at 8:00 AM
+MONTHLY_SCHEDULE="0 8 1 * *"    # 1st day of month at 8:00 AM
+
+# Set timezone for announcements
+SCHEDULER_TIMEZONE="America/New_York"  # Default: UTC
+```
+
+#### Cron Schedule Examples
+
+| Schedule | Cron Expression | Description |
+|----------|----------------|-------------|
+| Every Monday 8 AM | `0 8 * * 1` | Weekly announcements |
+| 1st of month 8 AM | `0 8 1 * *` | Monthly overview |
+| Every Friday 5 PM | `0 17 * * 5` | Weekend race prep |
+| Every Sunday 6 PM | `0 18 * * 0` | Week ahead preview |
 
 ### Application Settings
 
@@ -529,9 +671,10 @@ node utils/setup.js list-webhooks
 
 ### Key Dependencies
 
-- **Node.js** - Latest LTS with improved performance and security
+- **Node.js 24** - Latest LTS with improved performance and security
 - **Discord.js** - Modern Discord API wrapper with slash commands
 - **Express** - Web framework for webhook server and API endpoints
+- **better-sqlite3** - High-performance SQLite database driver
 - **chalk** - Enhanced terminal colors with ESM support
 - **dotenv** - Improved environment variable management
 - **node-cron** - Advanced task scheduling capabilities

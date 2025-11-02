@@ -5,6 +5,13 @@ const DiscordCommands = require('../../src/discord/commands');
 const ActivityEmbedBuilder = require('../../src/utils/EmbedBuilder');
 const logger = require('../../src/utils/Logger');
 
+// Mock dynamicConfig
+jest.mock('../../config/dynamicConfig', () => ({
+  getDiscordChannelId: jest.fn()
+}));
+
+const dynamicConfig = require('../../config/dynamicConfig');
+
 // Mock dependencies
 jest.mock('discord.js', () => ({
   Client: jest.fn().mockImplementation(() => ({
@@ -44,6 +51,23 @@ jest.mock('../../src/utils/Logger', () => ({
     warn: jest.fn()
   }
 }));
+
+// Helper functions to reduce nesting
+const getEventHandler = (mockClient, eventName) => {
+  const call = mockClient.on.mock.calls.find(c => c[0] === eventName);
+  return call ? call[1] : null;
+};
+
+const getOnceHandler = (mockClient, eventName) => {
+  const call = mockClient.once.mock.calls.find(c => c[0] === eventName);
+  return call ? call[1] : null;
+};
+
+const createMockInteraction = (overrides = {}) => ({
+  isChatInputCommand: () => false,
+  isAutocomplete: () => false,
+  ...overrides
+});
 
 describe('DiscordBot', () => {
   let discordBot;
@@ -149,7 +173,7 @@ describe('DiscordBot', () => {
   describe('event handlers', () => {
     describe('ready event', () => {
       it('should log bot information and register commands', async () => {
-        const readyHandler = mockClient.once.mock.calls.find(call => call[0] === 'ready')[1];
+        const readyHandler = getOnceHandler(mockClient, 'ready');
         jest.spyOn(discordBot, 'registerCommands').mockResolvedValue();
 
         await readyHandler();
@@ -164,7 +188,7 @@ describe('DiscordBot', () => {
       });
 
       it('should handle registerCommands errors gracefully', async () => {
-        const readyHandler = mockClient.once.mock.calls.find(call => call[0] === 'ready')[1];
+        const readyHandler = getOnceHandler(mockClient, 'ready');
         const error = new Error('Command registration failed');
         jest.spyOn(discordBot, 'registerCommands').mockRejectedValue(error);
 
@@ -177,14 +201,13 @@ describe('DiscordBot', () => {
       let interactionHandler;
 
       beforeEach(() => {
-        interactionHandler = mockClient.on.mock.calls.find(call => call[0] === 'interactionCreate')[1];
+        interactionHandler = getEventHandler(mockClient, 'interactionCreate');
       });
 
       it('should handle chat input commands', async () => {
-        const mockInteraction = {
-          isChatInputCommand: () => true,
-          isAutocomplete: () => false
-        };
+        const mockInteraction = createMockInteraction({
+          isChatInputCommand: () => true
+        });
 
         await interactionHandler(mockInteraction);
 
@@ -192,10 +215,9 @@ describe('DiscordBot', () => {
       });
 
       it('should handle autocomplete interactions', async () => {
-        const mockInteraction = {
-          isChatInputCommand: () => false,
+        const mockInteraction = createMockInteraction({
           isAutocomplete: () => true
-        };
+        });
 
         await interactionHandler(mockInteraction);
 
@@ -203,10 +225,7 @@ describe('DiscordBot', () => {
       });
 
       it('should ignore other interaction types', async () => {
-        const mockInteraction = {
-          isChatInputCommand: () => false,
-          isAutocomplete: () => false
-        };
+        const mockInteraction = createMockInteraction();
 
         await interactionHandler(mockInteraction);
 
@@ -215,10 +234,9 @@ describe('DiscordBot', () => {
       });
 
       it('should handle command errors gracefully', async () => {
-        const mockInteraction = {
-          isChatInputCommand: () => true,
-          isAutocomplete: () => false
-        };
+        const mockInteraction = createMockInteraction({
+          isChatInputCommand: () => true
+        });
         const error = new Error('Command failed');
         mockCommands.handleCommand.mockRejectedValue(error);
 
@@ -227,10 +245,9 @@ describe('DiscordBot', () => {
       });
 
       it('should handle autocomplete errors gracefully', async () => {
-        const mockInteraction = {
-          isChatInputCommand: () => false,
+        const mockInteraction = createMockInteraction({
           isAutocomplete: () => true
-        };
+        });
         const error = new Error('Autocomplete failed');
         mockCommands.handleAutocomplete.mockRejectedValue(error);
 
@@ -240,7 +257,7 @@ describe('DiscordBot', () => {
 
     describe('error event', () => {
       it('should log Discord client errors', () => {
-        const errorHandler = mockClient.on.mock.calls.find(call => call[0] === 'error')[1];
+        const errorHandler = getEventHandler(mockClient, 'error');
         const error = new Error('WebSocket connection failed');
 
         errorHandler(error);
@@ -390,6 +407,8 @@ describe('DiscordBot', () => {
     beforeEach(() => {
       mockClient.channels.fetch.mockResolvedValue(mockChannel);
       mockChannel.send.mockResolvedValue({ id: 'message_id' });
+      // Mock the channel ID for successful tests
+      dynamicConfig.getDiscordChannelId.mockResolvedValue(config.discord.channelId);
     });
 
     it('should post activity to Discord channel', async () => {
@@ -412,6 +431,8 @@ describe('DiscordBot', () => {
     });
 
     it('should handle channel not found error', async () => {
+      // Mock successful channel ID retrieval but channel fetch returns null
+      dynamicConfig.getDiscordChannelId.mockResolvedValue(config.discord.channelId);
       mockClient.channels.fetch.mockResolvedValue(null);
 
       await expect(discordBot.postActivity(mockActivityData)).rejects.toThrow('Discord channel not found');
@@ -427,6 +448,8 @@ describe('DiscordBot', () => {
     });
 
     it('should handle channel fetch errors', async () => {
+      // Mock successful channel ID retrieval but channel fetch fails
+      dynamicConfig.getDiscordChannelId.mockResolvedValue(config.discord.channelId);
       const error = new Error('Channel fetch failed');
       mockClient.channels.fetch.mockRejectedValue(error);
 
@@ -443,12 +466,26 @@ describe('DiscordBot', () => {
     });
 
     it('should handle message send errors', async () => {
+      // Mock successful channel ID and fetch but message send fails
+      dynamicConfig.getDiscordChannelId.mockResolvedValue(config.discord.channelId);
+      mockClient.channels.fetch.mockResolvedValue(mockChannel);
       const error = new Error('Missing permissions');
       mockChannel.send.mockRejectedValue(error);
 
       await expect(discordBot.postActivity(mockActivityData)).rejects.toThrow(error);
 
       expect(logger.discord.error).toHaveBeenCalledWith('Failed to post activity to Discord', expect.any(Object));
+    });
+
+    it('should handle missing Discord channel ID configuration', async () => {
+      // Mock channel ID as null/undefined 
+      dynamicConfig.getDiscordChannelId.mockResolvedValue(null);
+
+      await expect(discordBot.postActivity(mockActivityData)).rejects.toThrow('Missing Discord channel ID - use /settings channel to configure');
+
+      expect(logger.discord.error).toHaveBeenCalledWith('Failed to post activity to Discord', {
+        error: 'Missing Discord channel ID - use /settings channel to configure'
+      });
     });
 
     it('should handle activities with missing athlete data', async () => {

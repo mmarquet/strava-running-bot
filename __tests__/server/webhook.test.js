@@ -682,20 +682,16 @@ describe('WebhookServer', () => {
 
   describe('error handler', () => {
     beforeEach(() => {
-      // Create a fresh server instance for each test
+      // Ensure NODE_ENV is set to 'test' so test routes are enabled
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'test';
+
+      // Create a fresh server instance (test routes are automatically added in webhook.js)
       webhookServer = new WebhookServer(mockActivityProcessor);
-      
-      // Add test route that throws an error
-      webhookServer.app.get('/test-error', (req, res, next) => {
-        next(new Error('Test error'));
-      });
-      
-      // Setup middleware and routes after adding test routes
-      webhookServer.setupMiddleware();
-      webhookServer.setupRoutes();
-      
-      // Update the app reference
       app = webhookServer.app;
+
+      // Restore original env after setup
+      process.env.NODE_ENV = originalEnv;
     });
 
     it('should handle server errors', async () => {
@@ -784,6 +780,9 @@ describe('WebhookServer', () => {
 
       // Should resolve successfully without throwing
       await expect(stopPromise).resolves.toBeUndefined();
+      
+      // Ensure server is still null after stop
+      expect(webhookServer.server).toBeNull();
       
       // Should not log server stopped message when no server exists
       expect(logger.server.info).not.toHaveBeenCalledWith('Webhook server stopped');

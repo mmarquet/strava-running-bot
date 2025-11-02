@@ -707,8 +707,20 @@ describe('MemberManager - Stress Tests', () => {
 
       fs.readFile.mockResolvedValue(JSON.stringify(corruptedData));
 
-      await expect(memberManager.loadMembers()).rejects.toThrow();
-      expect(logger.member.error).toHaveBeenCalled();
+      // Should load successfully but skip the corrupted member
+      await memberManager.loadMembers();
+      
+      // Should log error about decryption failure
+      expect(logger.member.error).toHaveBeenCalledWith(
+        'Failed to decrypt member data, skipping',
+        expect.objectContaining({
+          discordUserId: memberWithBadEncryption.discordUserId,
+          error: expect.any(String)
+        })
+      );
+      
+      // Member should not be loaded
+      expect(memberManager.members.size).toBe(0);
     });
 
     it('should handle concurrent registrations with file system delays', async () => {

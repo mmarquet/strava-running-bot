@@ -39,6 +39,7 @@ class RaceManager {
         location: raceData.location?.trim() || null,
         notes: raceData.notes?.trim() || null,
         goalTime: raceData.goalTime?.trim() || null,
+        elevation: raceData.elevation?.trim() || null,
         status: 'registered'
       });
 
@@ -86,6 +87,7 @@ class RaceManager {
       if (updates.notes) updates.notes = updates.notes.trim();
       if (updates.goal) updates.goal_time = updates.goal; // Map goal to goal_time
       if (updates.goalTime) updates.goal_time = updates.goalTime.trim(); // Also handle goalTime directly
+      if (updates.elevation) updates.elevation = updates.elevation.trim();
 
       // Handle date fields and convert DD-MM-YYYY to YYYY-MM-DD
       if (updates.date) {
@@ -295,7 +297,8 @@ class RaceManager {
       { field: 'distance', maxLength: VALIDATION.MAX_DISTANCE_STRING_LENGTH, label: 'Distance' },
       { field: 'location', maxLength: VALIDATION.MAX_LOCATION_LENGTH, label: 'Location' },
       { field: 'notes', maxLength: VALIDATION.MAX_NOTES_LENGTH, label: 'Notes' },
-      { field: 'goalTime', maxLength: VALIDATION.MAX_GOAL_TIME_LENGTH, label: 'Goal time' }
+      { field: 'goalTime', maxLength: VALIDATION.MAX_GOAL_TIME_LENGTH, label: 'Goal time' },
+      { field: 'elevation', maxLength: VALIDATION.MAX_ELEVATION_LENGTH, label: 'Elevation' }
     ];
 
     for (const { field, maxLength, label } of validations) {
@@ -354,6 +357,10 @@ class RaceManager {
 
     if (race.goal_time) {
       display += `\n🎯 Goal: ${race.goal_time}`;
+    }
+
+    if (race.elevation) {
+      display += `\n🏔️ Elevation: ${race.elevation}`;
     }
 
     if (race.actual_time && race.status === 'completed') {

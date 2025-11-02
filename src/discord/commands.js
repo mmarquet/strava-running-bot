@@ -151,6 +151,13 @@ class DiscordCommands {
             )
             .addStringOption(option =>
               option
+                .setName('elevation')
+                .setDescription('Elevation gain/loss (e.g. 5400D+/3600D-)')
+                .setRequired(false)
+                .setMaxLength(50)
+            )
+            .addStringOption(option =>
+              option
                 .setName('notes')
                 .setDescription('Additional notes')
                 .setRequired(false)
@@ -227,6 +234,13 @@ class DiscordCommands {
                 .setDescription('New goal time')
                 .setRequired(false)
                 .setMaxLength(20)
+            )
+            .addStringOption(option =>
+              option
+                .setName('elevation')
+                .setDescription('New elevation (e.g. 5400D+/3600D-)')
+                .setRequired(false)
+                .setMaxLength(50)
             )
             .addStringOption(option =>
               option
@@ -1116,6 +1130,7 @@ class DiscordCommands {
         distanceKm: distanceKm,
         location: options.getString('location'),
         goalTime: options.getString('goal'),
+        elevation: options.getString('elevation'),
         notes: options.getString('notes')
       };
 
@@ -1269,6 +1284,7 @@ class DiscordCommands {
       if (options.getString('distance')) updates.distance = options.getString('distance');
       if (options.getString('location')) updates.location = options.getString('location');
       if (options.getString('goal')) updates.goalTime = options.getString('goal');
+      if (options.getString('elevation')) updates.elevation = options.getString('elevation');
       if (options.getString('status')) updates.status = options.getString('status');
 
       if (Object.keys(updates).length === 0) {

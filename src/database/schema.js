@@ -48,6 +48,7 @@ const races = sqliteTable('races', {
   status: text('status').notNull().default('registered'), // registered, completed, cancelled, dns, dnf
   notes: text('notes'),
   goal_time: text('goal_time'), // e.g. "3:30:00"
+  elevation: text('elevation'), // e.g. "5400D+/3600D-"
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });

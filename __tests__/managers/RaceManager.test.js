@@ -84,6 +84,7 @@ describe('RaceManager', () => {
         location: 'Boston, MA',
         notes: 'First Boston attempt',
         goalTime: '3:30:00',
+        elevation: null,
         status: 'registered'
       });
       expect(result).toEqual(expectedRace);

@@ -1,5 +1,5 @@
 # Use latest Node.js 24 LTS 
-FROM node:24-bullseye-slim
+FROM node:25-bullseye-slim
 
 # Set working directory
 WORKDIR /app

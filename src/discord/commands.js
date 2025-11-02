@@ -707,7 +707,7 @@ class DiscordCommands {
         },
         {
           name: '✅ How to fix it',
-          value: `Go to the Discord server and use the \`/register\` command to reconnect your Strava account.\n\nThis will only take a minute and will restore your activity posting!`,
+          value: 'Go to the Discord server and use the `/register` command to reconnect your Strava account.\n\nThis will only take a minute and will restore your activity posting!',
           inline: false
         }
       ])
@@ -1325,7 +1325,7 @@ class DiscordCommands {
       const race = await this.raceManager.addRace(interaction.user.id, raceData);
 
       const embed = new EmbedBuilder()
-        .setTitle(`🏃 ${raceType === 'road' ? '🛣️' : '�️'} Race Added!`)
+        .setTitle(`🏃 ${raceType === 'road' ? '🛣️' : '🏔️'} Race Added!`)
         .setColor(raceType === 'road' ? '#00FF88' : '#8B4513')
         .setDescription(this.raceManager.formatRaceDisplay(race, false))
         .addFields([{

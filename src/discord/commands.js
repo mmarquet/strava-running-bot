@@ -784,7 +784,7 @@ class DiscordCommands {
       }
 
       const member = await this.activityProcessor.memberManager.getMemberByDiscordId(userId);
-      
+
       if (!member) {
         await interaction.editReply({
           content: '❌ User not found in team members.',
@@ -793,7 +793,7 @@ class DiscordCommands {
         return;
       }
 
-      const success = await this.activityProcessor.memberManager.deactivateMember(member.athlete.id);
+      const success = await this.activityProcessor.memberManager.deactivateMember(member.athleteId);
 
       if (success) {
         const memberName = member.discordUser ? member.discordUser.displayName : `${member.athlete.firstname} ${member.athlete.lastname}`;
@@ -845,10 +845,9 @@ class DiscordCommands {
         return;
       }
 
-      // Get member even if inactive
-      const athleteId = this.activityProcessor.memberManager.discordToStrava.get(userId);
-      const member = athleteId ? this.activityProcessor.memberManager.members.get(athleteId) : null;
-      
+      // Get member even if inactive (getMemberByDiscordId doesn't filter by is_active)
+      const member = await this.activityProcessor.memberManager.getMemberByDiscordId(userId);
+
       if (!member) {
         await interaction.editReply({
           content: '❌ User not found in team members.',
@@ -857,7 +856,7 @@ class DiscordCommands {
         return;
       }
 
-      const success = await this.activityProcessor.memberManager.reactivateMember(member.athlete.id);
+      const success = await this.activityProcessor.memberManager.reactivateMember(member.athleteId);
 
       if (success) {
         const memberName = member.discordUser ? member.discordUser.displayName : `${member.athlete.firstname} ${member.athlete.lastname}`;

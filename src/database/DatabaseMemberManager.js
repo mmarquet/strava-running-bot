@@ -41,6 +41,16 @@ class DatabaseMemberManager {
     return await this.databaseManager.getAllMembers();
   }
 
+  async getAllMembersIncludingInactive() {
+    await this.ensureInitialized();
+    return await this.databaseManager.getAllMembersIncludingInactive();
+  }
+
+  async getInactiveMembers() {
+    await this.ensureInitialized();
+    return await this.databaseManager.getInactiveMembers();
+  }
+
   async getMemberCount() {
     await this.ensureInitialized();
     const members = await this.getAllMembers();

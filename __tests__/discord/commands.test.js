@@ -143,6 +143,7 @@ describe('DiscordCommands', () => {
 
   const mockMember = {
     discordUserId: '123456789',
+    athleteId: 12345,
     discordUser: {
       displayName: 'Test User',
       username: 'testuser'
@@ -771,9 +772,7 @@ describe('DiscordCommands', () => {
     beforeEach(() => {
       mockInteraction.options.getString.mockReturnValue('<@123456789>');
       DiscordUtils.extractUserId.mockReturnValue('123456789');
-      // Mock the Map methods properly
-      mockActivityProcessor.memberManager.discordToStrava = new Map([['123456789', '12345']]);
-      mockActivityProcessor.memberManager.members = new Map([['12345', mockMember]]);
+      mockMemberManager.getMemberByDiscordId.mockResolvedValue(mockMember);
     });
 
     it('should reactivate member successfully', async () => {
@@ -781,6 +780,7 @@ describe('DiscordCommands', () => {
 
       await discordCommands.reactivateMember(mockInteraction, mockInteraction.options);
 
+      expect(mockMemberManager.getMemberByDiscordId).toHaveBeenCalledWith('123456789');
       expect(mockMemberManager.reactivateMember).toHaveBeenCalledWith(12345);
       expect(mockInteraction.editReply).toHaveBeenCalledWith({
         embeds: [expect.any(Object)]
@@ -788,7 +788,7 @@ describe('DiscordCommands', () => {
     });
 
     it('should handle non-existent member', async () => {
-      mockActivityProcessor.memberManager.discordToStrava = new Map(); // Empty map
+      mockMemberManager.getMemberByDiscordId.mockResolvedValue(null);
 
       await discordCommands.reactivateMember(mockInteraction, mockInteraction.options);
 
@@ -803,6 +803,8 @@ describe('DiscordCommands', () => {
 
       await discordCommands.reactivateMember(mockInteraction, mockInteraction.options);
 
+      expect(mockMemberManager.getMemberByDiscordId).toHaveBeenCalledWith('123456789');
+      expect(mockMemberManager.reactivateMember).toHaveBeenCalledWith(12345);
       expect(mockInteraction.editReply).toHaveBeenCalledWith({
         content: '❌ Failed to reactivate member.',
         ephemeral: true

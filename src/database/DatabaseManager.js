@@ -316,10 +316,31 @@ class DatabaseManager {
 
   async getAllMembers() {
     await this.ensureInitialized();
-    
+
     const memberList = await this.db.select()
       .from(members)
       .where(eq(members.is_active, 1))
+      .orderBy(asc(members.created_at));
+
+    return memberList.map(member => this.decryptMember(member));
+  }
+
+  async getAllMembersIncludingInactive() {
+    await this.ensureInitialized();
+
+    const memberList = await this.db.select()
+      .from(members)
+      .orderBy(asc(members.created_at));
+
+    return memberList.map(member => this.decryptMember(member));
+  }
+
+  async getInactiveMembers() {
+    await this.ensureInitialized();
+
+    const memberList = await this.db.select()
+      .from(members)
+      .where(eq(members.is_active, 0))
       .orderBy(asc(members.created_at));
 
     return memberList.map(member => this.decryptMember(member));

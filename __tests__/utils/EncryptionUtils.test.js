@@ -1,20 +1,21 @@
+// Mock config before importing EncryptionUtils
+jest.mock('../../config/config', () => ({
+  security: {
+    encryptionKey: 'a'.repeat(64) // 64 hex characters = 32 bytes for AES-256
+  },
+  server: {
+    port: 3000,
+    publicUrl: 'http://localhost:3000'
+  }
+}));
+
 const EncryptionUtils = require('../../src/utils/EncryptionUtils');
+const config = require('../../config/config');
 
 describe('EncryptionUtils', () => {
-  const originalConfig = require('../../config/config');
-  let config;
-
   beforeEach(() => {
-    // Mock config with a valid encryption key
-    config = require('../../config/config');
-    config.security = {
-      encryptionKey: 'a'.repeat(64) // 64 hex characters = 32 bytes for AES-256
-    };
-  });
-
-  afterEach(() => {
-    // Restore original config
-    config.security = originalConfig.security;
+    // Reset config to valid encryption key
+    config.security.encryptionKey = 'a'.repeat(64);
   });
 
   describe('encryptTokens', () => {

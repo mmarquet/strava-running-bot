@@ -26,7 +26,7 @@ const VALIDATION = {
   MAX_NOTES_LENGTH: 500,      // Maximum notes field length
   MAX_GOAL_TIME_LENGTH: 20,   // Maximum goal time string length
   MAX_ELEVATION_LENGTH: 50,   // Maximum elevation string length
-  MAX_DISTANCE_STRING_LENGTH: 20, // Maximum distance string length
+  MAX_DISTANCE_STRING_LENGTH: 50, // Maximum distance string length (e.g., "Half Marathon (21.1K)")
   MIN_DISTANCE: 0,            // Minimum valid race distance (km)
   MAX_DISTANCE: 1000          // Maximum valid race distance (km)
 };

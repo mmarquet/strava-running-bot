@@ -86,7 +86,7 @@ class DiscordCommands {
 
       // Race management commands
       new SlashCommandBuilder()
-        .setName('race')
+        .setName('my-races')
         .setDescription('Manage your upcoming races')
         .addSubcommand(subcommand =>
           subcommand
@@ -272,8 +272,8 @@ class DiscordCommands {
 
       // Team races command (admin only)
       new SlashCommandBuilder()
-        .setName('teamraces')
-        .setDescription('View all team races')
+        .setName('all-races')
+        .setDescription('View all team races (admin only)')
         .addSubcommand(subcommand =>
           subcommand
             .setName('list')
@@ -380,10 +380,10 @@ class DiscordCommands {
       case 'last':
         await this.handleLastActivityCommand(interaction, options);
         break;
-      case 'race':
+      case 'my-races':
         await this.handleRaceCommand(interaction, options);
         break;
-      case 'teamraces':
+      case 'all-races':
         await this.handleTeamRacesCommand(interaction, options);
         break;
       case 'settings':
@@ -1145,7 +1145,7 @@ class DiscordCommands {
           value: `#${race.id}`,
           inline: true
         }])
-        .setFooter({ text: 'Use /race list to see all your races' })
+        .setFooter({ text: 'Use /my-races list to see all your races' })
         .setTimestamp();
 
       await interaction.editReply({ embeds: [embed] });
@@ -1185,7 +1185,7 @@ class DiscordCommands {
       if (races.length === 0) {
         const statusText = status ? ` with status "${status}"` : '';
         await interaction.editReply({
-          content: `📭 No races found${statusText}. Use \`/race add\` to add your first race!`,
+          content: `📭 No races found${statusText}. Use \`/my-races add\` to add your first race!`,
           ephemeral: true
         });
         return;

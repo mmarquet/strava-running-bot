@@ -31,7 +31,7 @@ Successfully implemented comprehensive enhancements to the race management syste
 
 ### 4. Enhanced Discord Command Interface
 ```
-/race add
+/my-races add
 ├── name: [Required] Race name
 ├── date: [Required] Race date (YYYY-MM-DD)
 ├── race_type: [Required Choice] road | trail
@@ -72,7 +72,7 @@ distanceKm: text('distance_km'),
 
 ### 2. Discord Commands (`src/discord/commands.js`)
 ```javascript
-// Enhanced /race add command with choices
+// Enhanced /my-races add command with choices
 .addStringOption(option =>
   option.setName('race_type')
     .setDescription('Type of race')
@@ -128,17 +128,17 @@ async addRace(memberAthleteId, raceData) {
 
 ### Road Race with Marathon Distance
 ```
-/race add name:"Boston Marathon" date:2025-04-21 race_type:road distance_preset:marathon location:"Boston, MA" goal_time:3:30:00
+/my-races add name:"Boston Marathon" date:2025-04-21 race_type:road distance_preset:marathon location:"Boston, MA" goal_time:3:30:00
 ```
 
 ### Trail Race with Custom Distance  
 ```
-/race add name:"Mountain Trail Challenge" date:2025-05-10 race_type:trail custom_distance:25 location:"Rocky Mountains" goal_time:2:30:00
+/my-races add name:"Mountain Trail Challenge" date:2025-05-10 race_type:trail custom_distance:25 location:"Rocky Mountains" goal_time:2:30:00
 ```
 
 ### Road Race with Custom Distance
 ```
-/race add name:"Charity 8K" date:2025-03-15 race_type:road distance_preset:other custom_distance:8 location:"Community Park"
+/my-races add name:"Charity 8K" date:2025-03-15 race_type:road distance_preset:other custom_distance:8 location:"Community Park"
 ```
 
 ## Command Flow Logic
@@ -193,7 +193,7 @@ async addRace(memberAthleteId, raceData) {
 ## Files Modified
 
 1. `src/database/schema.js` - Added race_type and distance_km fields
-2. `src/discord/commands.js` - Enhanced /race add command with choices  
+2. `src/discord/commands.js` - Enhanced /my-races add command with choices  
 3. `src/managers/RaceManager.js` - Updated validation and formatting
 4. `src/database/DatabaseManager.js` - Modified addRace method
 5. `src/database/migrations/002_add_race_type_distance.js` - New migration

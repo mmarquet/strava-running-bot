@@ -1,13 +1,13 @@
 const fs = require('node:fs').promises;
 const path = require('node:path');
-const crypto = require('node:crypto');
 const { eq, and, desc, asc, gte, lte, sql } = require('drizzle-orm');
 const dbConnection = require('./connection');
 const { members, races, migrationLog, settings } = require('./schema');
 const logger = require('../utils/Logger');
 const config = require('../../config/config');
 const SettingsManager = require('../managers/SettingsManager');
-const { ENCRYPTION, TIME } = require('../constants');
+const EncryptionUtils = require('../utils/EncryptionUtils');
+const { TIME } = require('../constants');
 const DateUtils = require('../utils/DateUtils');
 
 class DatabaseManager {
@@ -239,23 +239,7 @@ class DatabaseManager {
     let encryptedTokens = null;
     if (tokenData && config.security.encryptionKey) {
       try {
-        const crypto = require('node:crypto');
-        const algorithm = ENCRYPTION.ALGORITHM;
-        const key = Buffer.from(config.security.encryptionKey, 'hex');
-        const iv = crypto.randomBytes(ENCRYPTION.IV_LENGTH);
-
-        const cipher = crypto.createCipheriv(algorithm, key, iv);
-        const sensitiveData = JSON.stringify(tokenData);
-        let encrypted = cipher.update(sensitiveData, 'utf8', 'hex');
-        encrypted += cipher.final('hex');
-        const authTag = cipher.getAuthTag();
-
-        // Store in format compatible with DatabaseMemberManager._decryptTokenData
-        encryptedTokens = JSON.stringify({
-          iv: iv.toString('hex'),
-          encrypted: encrypted,
-          authTag: authTag.toString('hex')
-        });
+        encryptedTokens = EncryptionUtils.encryptTokensToJSON(tokenData);
 
         logger.database.info('Tokens encrypted successfully for new member', {
           athleteId,
@@ -423,23 +407,7 @@ class DatabaseManager {
     let encryptedTokens = null;
     if (config.security.encryptionKey) {
       try {
-        const crypto = require('node:crypto');
-        const algorithm = ENCRYPTION.ALGORITHM;
-        const key = Buffer.from(config.security.encryptionKey, 'hex');
-        const iv = crypto.randomBytes(ENCRYPTION.IV_LENGTH);
-
-        const cipher = crypto.createCipheriv(algorithm, key, iv);
-        const sensitiveData = JSON.stringify(tokenData);
-        let encrypted = cipher.update(sensitiveData, 'utf8', 'hex');
-        encrypted += cipher.final('hex');
-        const authTag = cipher.getAuthTag();
-
-        // Store in format compatible with DatabaseMemberManager._decryptTokenData
-        encryptedTokens = JSON.stringify({
-          iv: iv.toString('hex'),
-          encrypted: encrypted,
-          authTag: authTag.toString('hex')
-        });
+        encryptedTokens = EncryptionUtils.encryptTokensToJSON(tokenData);
 
         logger.database.info('Tokens encrypted successfully for token update', {
           athleteId,
@@ -668,55 +636,6 @@ class DatabaseManager {
   }
 
   // === ENCRYPTION/DECRYPTION ===
-  encryptTokens(tokens) {
-    if (!config.security.encryptionKey || !tokens) {
-      return null;
-    }
-
-    const algorithm = ENCRYPTION.ALGORITHM;
-    const key = Buffer.from(config.security.encryptionKey, 'hex');
-    const iv = crypto.randomBytes(ENCRYPTION.IV_LENGTH);
-    
-    const cipher = crypto.createCipheriv(algorithm, key, iv);
-    
-    const sensitiveData = JSON.stringify(tokens);
-    let encrypted = cipher.update(sensitiveData, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    
-    const authTag = cipher.getAuthTag();
-    
-    return Buffer.concat([
-      iv,
-      authTag, 
-      Buffer.from(encrypted, 'hex')
-    ]);
-  }
-
-  decryptTokens(encryptedBuffer) {
-    if (!config.security.encryptionKey || !encryptedBuffer) {
-      return null;
-    }
-
-    try {
-      const algorithm = ENCRYPTION.ALGORITHM;
-      const key = Buffer.from(config.security.encryptionKey, 'hex');
-
-      const iv = encryptedBuffer.subarray(0, ENCRYPTION.IV_LENGTH);
-      const authTag = encryptedBuffer.subarray(ENCRYPTION.IV_LENGTH, ENCRYPTION.IV_LENGTH + ENCRYPTION.IV_LENGTH);
-      const encrypted = encryptedBuffer.subarray(ENCRYPTION.IV_LENGTH + ENCRYPTION.IV_LENGTH);
-      
-      const decipher = crypto.createDecipheriv(algorithm, key, iv);
-      decipher.setAuthTag(authTag);
-      
-      let decrypted = decipher.update(encrypted, null, 'utf8');
-      decrypted += decipher.final('utf8');
-      
-      return JSON.parse(decrypted);
-    } catch (error) {
-      logger.database?.error('Failed to decrypt tokens', error);
-      return null;
-    }
-  }
 
   encryptData(data) {
     if (!data) return null;

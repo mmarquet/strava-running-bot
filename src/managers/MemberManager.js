@@ -1,10 +1,10 @@
 const fs = require('node:fs').promises;
 const path = require('node:path');
-const crypto = require('node:crypto');
 const config = require('../../config/config');
 const StravaAPI = require('../strava/api');
 const logger = require('../utils/Logger');
-const { TIME, ENCRYPTION } = require('../constants');
+const EncryptionUtils = require('../utils/EncryptionUtils');
+const { TIME } = require('../constants');
 
 class MemberManager {
   constructor() {
@@ -664,25 +664,11 @@ class MemberManager {
       return member; // Return unencrypted if no key
     }
 
-    const algorithm = ENCRYPTION.ALGORITHM;
-    const key = Buffer.from(config.security.encryptionKey, 'hex');
-    const iv = crypto.randomBytes(ENCRYPTION.IV_LENGTH);
-    
-    const cipher = crypto.createCipheriv(algorithm, key, iv);
-    
-    const sensitiveData = JSON.stringify(member.tokens);
-    let encrypted = cipher.update(sensitiveData, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    
-    const authTag = cipher.getAuthTag();
-    
+    const encryptedTokens = EncryptionUtils.encryptTokens(member.tokens);
+
     return {
       ...member,
-      tokens: {
-        encrypted: encrypted,
-        iv: iv.toString('hex'),
-        authTag: authTag.toString('hex')
-      }
+      tokens: encryptedTokens || member.tokens
     };
   }
 
@@ -692,22 +678,15 @@ class MemberManager {
       return encryptedMember; // Return as-is if not encrypted
     }
 
-    const algorithm = ENCRYPTION.ALGORITHM;
-    const key = Buffer.from(config.security.encryptionKey, 'hex');
-    const iv = Buffer.from(encryptedMember.tokens.iv, 'hex');
-    const authTag = Buffer.from(encryptedMember.tokens.authTag, 'hex');
-    
-    const decipher = crypto.createDecipheriv(algorithm, key, iv);
-    decipher.setAuthTag(authTag);
-    
-    let decrypted = decipher.update(encryptedMember.tokens.encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    
-    const tokens = JSON.parse(decrypted);
-    
+    const decryptedTokens = EncryptionUtils.decryptTokens(encryptedMember.tokens);
+
+    if (!decryptedTokens) {
+      throw new Error('Failed to decrypt member tokens');
+    }
+
     return {
       ...encryptedMember,
-      tokens: tokens
+      tokens: decryptedTokens
     };
   }
 

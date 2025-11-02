@@ -1,6 +1,6 @@
 const databaseManager = require('../database/DatabaseManager');
 const logger = require('../utils/Logger');
-const { ENCRYPTION } = require('../constants');
+const EncryptionUtils = require('../utils/EncryptionUtils');
 
 /**
  * Database-backed MemberManager - Drop-in replacement for the JSON-based MemberManager
@@ -81,25 +81,13 @@ class DatabaseMemberManager {
   // Helper: Decrypt tokens using AES-256-GCM
   _decryptTokenData(encryptedTokens, _athleteId) {
     const config = require('../../config/config');
-    const crypto = require('node:crypto');
 
     if (!config.security.encryptionKey) {
       logger.database.warn('No encryption key available for token decryption');
       return null;
     }
 
-    const algorithm = ENCRYPTION.ALGORITHM;
-    const key = Buffer.from(config.security.encryptionKey, 'hex');
-    const iv = Buffer.from(encryptedTokens.iv, 'hex');
-    const authTag = Buffer.from(encryptedTokens.authTag, 'hex');
-
-    const decipher = crypto.createDecipheriv(algorithm, key, iv);
-    decipher.setAuthTag(authTag);
-
-    let decrypted = decipher.update(encryptedTokens.encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-
-    const decryptedTokens = JSON.parse(decrypted);
+    const decryptedTokens = EncryptionUtils.decryptTokens(encryptedTokens);
 
     // Return full token data (including refresh_token and expires_at)
     // Expiration check moved to _getTokensFromDatabase to enable auto-refresh
@@ -370,7 +358,5 @@ class DatabaseMemberManager {
     return member;
   }
 }
-
-module.exports = DatabaseMemberManager;
 
 module.exports = DatabaseMemberManager;

@@ -445,46 +445,6 @@ describe('DatabaseManager', () => {
     });
   });
 
-  describe('encryptTokens and decryptTokens', () => {
-    it('should encrypt and decrypt tokens with encryption key', () => {
-      // Ensure encryption key is set - must be 32 bytes as hex (64 hex characters)
-      const originalKey = config.security.encryptionKey;
-      config.security.encryptionKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'; // 64 hex chars = 32 bytes
-
-      const tokens = {
-        accessToken: 'test-access-token',
-        refreshToken: 'test-refresh-token',
-        expiresAt: 1234567890
-      };
-
-      const encrypted = DatabaseManager.encryptTokens(tokens);
-      expect(encrypted).toBeInstanceOf(Buffer);
-
-      const decrypted = DatabaseManager.decryptTokens(encrypted);
-      expect(decrypted.accessToken).toBe(tokens.accessToken);
-      expect(decrypted.refreshToken).toBe(tokens.refreshToken);
-      expect(decrypted.expiresAt).toBe(tokens.expiresAt);
-
-      config.security.encryptionKey = originalKey;
-    });
-
-    it('should handle tokens with no encryption key', () => {
-      const originalKey = config.security.encryptionKey;
-      config.security.encryptionKey = null;
-
-      const tokens = {
-        accessToken: 'test',
-        refreshToken: 'test',
-        expiresAt: 123
-      };
-
-      const encrypted = DatabaseManager.encryptTokens(tokens);
-      expect(encrypted).toBeNull();
-
-      config.security.encryptionKey = originalKey;
-    });
-  });
-
   describe('getMemberByDiscordId', () => {
     it('should return member when found', async () => {
       const mockMember = {

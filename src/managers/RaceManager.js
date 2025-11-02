@@ -26,10 +26,13 @@ class RaceManager {
       // Validate race data
       this.validateRaceData(raceData);
 
+      // Convert date from DD-MM-YYYY to YYYY-MM-DD for storage
+      const isoDate = DateUtils.convertDDMMYYYYToISO(raceData.raceDate);
+
       // Add the race
       const race = await this.databaseManager.addRace(member.athleteId, {
         name: raceData.name.trim(),
-        raceDate: raceData.raceDate,
+        raceDate: isoDate,
         raceType: raceData.raceType || 'road',
         distance: raceData.distance?.trim() || null,
         distanceKm: raceData.distanceKm?.trim() || null,
@@ -83,9 +86,15 @@ class RaceManager {
       if (updates.notes) updates.notes = updates.notes.trim();
       if (updates.goal) updates.goal_time = updates.goal; // Map goal to goal_time
       if (updates.goalTime) updates.goal_time = updates.goalTime.trim(); // Also handle goalTime directly
-      if (updates.date) updates.race_date = updates.date; // Map date to race_date
-      if (updates.raceDate) updates.race_date = updates.raceDate; // Also handle raceDate directly
-      
+
+      // Handle date fields and convert DD-MM-YYYY to YYYY-MM-DD
+      if (updates.date) {
+        updates.race_date = DateUtils.convertDDMMYYYYToISO(updates.date);
+      }
+      if (updates.raceDate) {
+        updates.race_date = DateUtils.convertDDMMYYYYToISO(updates.raceDate);
+      }
+
       // Clean up any unmapped fields to avoid column errors
       delete updates.goal;
       delete updates.date;
@@ -247,19 +256,21 @@ class RaceManager {
     }
   }
 
-  // Helper: Validate race date
+  // Helper: Validate race date (accepts DD-MM-YYYY format)
   _validateRaceDate(raceDate) {
     if (!raceDate) {
       throw new TypeError('Race date is required');
     }
 
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    const dateRegex = /^\d{2}-\d{2}-\d{4}$/;
     if (!dateRegex.test(raceDate)) {
-      throw new TypeError('Race date must be in YYYY-MM-DD format');
+      throw new TypeError('Race date must be in DD-MM-YYYY format');
     }
 
-    const date = new Date(raceDate + 'T00:00:00');
-    if (Number.isNaN(date.getTime())) {
+    // Validate by attempting conversion
+    try {
+      DateUtils.convertDDMMYYYYToISO(raceDate);
+    } catch (_error) {
       throw new TypeError('Invalid race date');
     }
   }
@@ -321,13 +332,14 @@ class RaceManager {
     const typeLabel = race.race_type === 'trail' ? 'Trail' : 'Road';
     
     if (race.race_date) {
+      const ddmmyyyy = DateUtils.convertISOToDDMMYYYY(race.race_date);
       const date = new Date(race.race_date + 'T00:00:00');
-      display += ` - ${date.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      })}`;
+      display += ` - ${date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })} (${ddmmyyyy})`;
     }
 
     display += `\n${typeEmoji} ${typeLabel} Race`;

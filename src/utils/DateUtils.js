@@ -60,6 +60,49 @@ class DateUtils {
     const targetDate = this.parseDateString(targetDateString);
     return this.daysBetween(today, targetDate);
   }
+
+  /**
+   * Convert DD-MM-YYYY format to YYYY-MM-DD format (for internal storage)
+   * @param {string} dateString - Date string in DD-MM-YYYY format
+   * @returns {string} Date in YYYY-MM-DD format
+   * @throws {TypeError} If date format is invalid
+   */
+  static convertDDMMYYYYToISO(dateString) {
+    const ddmmyyyyRegex = /^(\d{2})-(\d{2})-(\d{4})$/;
+    const match = dateString.match(ddmmyyyyRegex);
+
+    if (!match) {
+      throw new TypeError('Date must be in DD-MM-YYYY format');
+    }
+
+    const [, day, month, year] = match;
+    const isoDate = `${year}-${month}-${day}`;
+
+    // Validate the date is actually valid
+    const date = new Date(isoDate + 'T00:00:00');
+    if (Number.isNaN(date.getTime())) {
+      throw new TypeError('Invalid date');
+    }
+
+    return isoDate;
+  }
+
+  /**
+   * Convert YYYY-MM-DD format to DD-MM-YYYY format (for display to users)
+   * @param {string} dateString - Date string in YYYY-MM-DD format
+   * @returns {string} Date in DD-MM-YYYY format
+   */
+  static convertISOToDDMMYYYY(dateString) {
+    const yyyymmddRegex = /^(\d{4})-(\d{2})-(\d{2})$/;
+    const match = dateString.match(yyyymmddRegex);
+
+    if (!match) {
+      throw new TypeError('Date must be in YYYY-MM-DD format');
+    }
+
+    const [, year, month, day] = match;
+    return `${day}-${month}-${year}`;
+  }
 }
 
 module.exports = DateUtils;

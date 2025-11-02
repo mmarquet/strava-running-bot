@@ -102,7 +102,7 @@ class DiscordCommands {
             .addStringOption(option =>
               option
                 .setName('date')
-                .setDescription('Race date (YYYY-MM-DD format, e.g. 2025-04-21)')
+                .setDescription('Race date (DD-MM-YYYY format, e.g. 21-04-2025)')
                 .setRequired(true)
             )
             .addStringOption(option =>
@@ -204,7 +204,7 @@ class DiscordCommands {
             .addStringOption(option =>
               option
                 .setName('date')
-                .setDescription('New race date (YYYY-MM-DD)')
+                .setDescription('New race date (DD-MM-YYYY)')
                 .setRequired(false)
             )
             .addStringOption(option =>

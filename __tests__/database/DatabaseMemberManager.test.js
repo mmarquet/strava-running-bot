@@ -18,10 +18,15 @@ const mockDatabaseManager = {
   getAllMembers: jest.fn(),
   getAllMembersIncludingInactive: jest.fn(),
   getInactiveMembers: jest.fn(),
+  getMemberCount: jest.fn(),
   deactivateMember: jest.fn(),
   reactivateMember: jest.fn(),
   removeMember: jest.fn(),
-  updateTokens: jest.fn()
+  updateTokens: jest.fn(),
+  getStats: jest.fn(),
+  close: jest.fn(),
+  backup: jest.fn(),
+  healthCheck: jest.fn()
 };
 
 const logger = require('../../src/utils/Logger');
@@ -494,6 +499,338 @@ describe('DatabaseMemberManager', () => {
       const result = await memberManager.getValidAccessToken(member);
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('token decryption error handling', () => {
+    it('should return null when token decryption fails', async () => {
+      const member = {
+        athleteId: 12345,
+        discordUserId: 'discord123',
+        tokens: { encrypted: 'bad_data', iv: 'iv', authTag: 'tag' }
+      };
+
+      // Mock decryption to throw error
+      jest.spyOn(memberManager, '_decryptTokenData').mockImplementation(() => {
+        throw new Error('Decryption failed');
+      });
+
+      const result = await memberManager._getTokensFromDatabase(member);
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('_getTokensFromJsonFallback', () => {
+    beforeEach(() => {
+      jest.resetModules();
+    });
+
+    it('should successfully retrieve tokens from JSON fallback', async () => {
+      const member = {
+        athleteId: 12345,
+        discordUserId: 'discord123'
+      };
+
+      const mockJsonData = {
+        members: [{
+          discordUserId: 'discord123',
+          tokens: { encrypted: 'data', iv: 'iv', authTag: 'tag' }
+        }]
+      };
+
+      const fs = require('node:fs').promises;
+      fs.readFile = jest.fn().mockResolvedValue(JSON.stringify(mockJsonData));
+
+      jest.spyOn(memberManager, '_decryptTokenData').mockReturnValue({
+        access_token: 'fallback_token'
+      });
+
+      const result = await memberManager._getTokensFromJsonFallback(member);
+
+      expect(result).toEqual({ access_token: 'fallback_token' });
+    });
+
+    it('should return null when member not found in JSON', async () => {
+      const member = {
+        athleteId: 12345,
+        discordUserId: 'discord999'
+      };
+
+      const mockJsonData = {
+        members: [{
+          discordUserId: 'discord123',
+          tokens: { encrypted: 'data', iv: 'iv', authTag: 'tag' }
+        }]
+      };
+
+      const fs = require('node:fs').promises;
+      fs.readFile = jest.fn().mockResolvedValue(JSON.stringify(mockJsonData));
+
+      const result = await memberManager._getTokensFromJsonFallback(member);
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null when member has no tokens in JSON', async () => {
+      const member = {
+        athleteId: 12345,
+        discordUserId: 'discord123'
+      };
+
+      const mockJsonData = {
+        members: [{
+          discordUserId: 'discord123'
+        }]
+      };
+
+      const fs = require('node:fs').promises;
+      fs.readFile = jest.fn().mockResolvedValue(JSON.stringify(mockJsonData));
+
+      const result = await memberManager._getTokensFromJsonFallback(member);
+
+      expect(result).toBeNull();
+    });
+
+    it('should handle JSON file read errors', async () => {
+      const member = {
+        athleteId: 12345,
+        discordUserId: 'discord123'
+      };
+
+      const fs = require('node:fs').promises;
+      fs.readFile = jest.fn().mockRejectedValue(new Error('File not found'));
+
+      const result = await memberManager._getTokensFromJsonFallback(member);
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('utility methods', () => {
+    beforeEach(async () => {
+      await memberManager.initialize();
+    });
+
+    describe('getStats', () => {
+      it('should return formatted statistics', async () => {
+        mockDatabaseManager.getStats.mockResolvedValue({
+          members: {
+            total: 50,
+            active: 45,
+            inactive: 5
+          }
+        });
+
+        const result = await memberManager.getStats();
+
+        expect(result).toEqual({
+          total: 50,
+          active: 45,
+          inactive: 5,
+          recentRegistrations: 0
+        });
+        expect(mockDatabaseManager.getStats).toHaveBeenCalled();
+      });
+
+      it('should handle missing stats gracefully', async () => {
+        mockDatabaseManager.getStats.mockResolvedValue({
+          members: {}
+        });
+
+        const result = await memberManager.getStats();
+
+        expect(result.total).toBe(0);
+        expect(result.active).toBe(0);
+        expect(result.inactive).toBe(0);
+      });
+    });
+
+    describe('close', () => {
+      it('should close database connection', async () => {
+        mockDatabaseManager.close.mockResolvedValue(true);
+
+        const result = await memberManager.close();
+
+        expect(mockDatabaseManager.close).toHaveBeenCalled();
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('backup', () => {
+      it('should backup database to specified path', async () => {
+        const backupPath = '/tmp/backup.db';
+        mockDatabaseManager.backup.mockResolvedValue(true);
+
+        const result = await memberManager.backup(backupPath);
+
+        expect(mockDatabaseManager.backup).toHaveBeenCalledWith(backupPath);
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('healthCheck', () => {
+      it('should perform health check', async () => {
+        const healthStatus = { status: 'healthy', uptime: 12345 };
+        mockDatabaseManager.healthCheck.mockResolvedValue(healthStatus);
+
+        const result = await memberManager.healthCheck();
+
+        expect(mockDatabaseManager.healthCheck).toHaveBeenCalled();
+        expect(result).toEqual(healthStatus);
+      });
+    });
+  });
+
+  describe('legacy support methods', () => {
+    it('should resolve saveMembersAsync', async () => {
+      await expect(memberManager.saveMembersAsync()).resolves.toBeUndefined();
+    });
+
+    it('should resolve saveMembers', async () => {
+      await expect(memberManager.saveMembers()).resolves.toBeUndefined();
+    });
+
+    it('should initialize on loadMembers', async () => {
+      mockDatabaseManager.initialize.mockResolvedValue(undefined);
+
+      await memberManager.loadMembers();
+
+      expect(mockDatabaseManager.initialize).toHaveBeenCalled();
+    });
+  });
+
+  describe('map-like interface', () => {
+    beforeEach(async () => {
+      await memberManager.initialize();
+    });
+
+    describe('discordToStrava', () => {
+      it('should get athlete ID from discord user ID', async () => {
+        const mockMember = { athleteId: 12345, discordUserId: 'discord123' };
+        mockDatabaseManager.getMemberByDiscordId.mockResolvedValue(mockMember);
+
+        const result = await memberManager.discordToStrava.get('discord123');
+
+        expect(result).toBe('12345');
+      });
+
+      it('should return undefined for non-existent discord user', async () => {
+        mockDatabaseManager.getMemberByDiscordId.mockResolvedValue(null);
+
+        const result = await memberManager.discordToStrava.get('discord999');
+
+        expect(result).toBeUndefined();
+      });
+
+      it('should check if discord user exists', async () => {
+        const mockMember = { athleteId: 12345, discordUserId: 'discord123' };
+        mockDatabaseManager.getMemberByDiscordId.mockResolvedValue(mockMember);
+
+        const result = await memberManager.discordToStrava.has('discord123');
+
+        expect(result).toBe(true);
+      });
+
+      it('should return false for non-existent discord user', async () => {
+        mockDatabaseManager.getMemberByDiscordId.mockResolvedValue(null);
+
+        const result = await memberManager.discordToStrava.has('discord999');
+
+        expect(result).toBe(false);
+      });
+
+      it('should handle set as no-op', () => {
+        expect(() => memberManager.discordToStrava.set()).not.toThrow();
+      });
+
+      it('should handle delete as no-op', () => {
+        expect(() => memberManager.discordToStrava.delete()).not.toThrow();
+      });
+    });
+
+    describe('members', () => {
+      it('should get member by athlete ID', async () => {
+        const mockMember = { athleteId: 12345, discordUserId: 'discord123' };
+        mockDatabaseManager.getMemberByAthleteId.mockResolvedValue(mockMember);
+
+        const result = await memberManager.members.get(12345);
+
+        expect(result).toEqual(mockMember);
+      });
+
+      it('should check if member exists', async () => {
+        const mockMember = { athleteId: 12345, discordUserId: 'discord123' };
+        mockDatabaseManager.getMemberByAthleteId.mockResolvedValue(mockMember);
+
+        const result = await memberManager.members.has(12345);
+
+        expect(result).toBe(true);
+      });
+
+      it('should return false for non-existent member', async () => {
+        mockDatabaseManager.getMemberByAthleteId.mockResolvedValue(null);
+
+        const result = await memberManager.members.has(99999);
+
+        expect(result).toBe(false);
+      });
+
+      it('should get all members via values', async () => {
+        const mockMembers = [
+          { athleteId: 12345, discordUserId: 'discord123' },
+          { athleteId: 67890, discordUserId: 'discord456' }
+        ];
+        mockDatabaseManager.getAllMembers.mockResolvedValue(mockMembers);
+
+        const result = await memberManager.members.values();
+
+        expect(result).toEqual(mockMembers);
+      });
+
+      it('should get member count via size', async () => {
+        const mockMembers = new Array(42).fill({ athleteId: 123, discordUserId: 'discord' });
+        mockDatabaseManager.getAllMembers.mockResolvedValue(mockMembers);
+
+        const result = await memberManager.members.size();
+
+        expect(result).toBe(42);
+      });
+
+      it('should handle set as no-op', () => {
+        expect(() => memberManager.members.set()).not.toThrow();
+      });
+
+      it('should handle delete as no-op', () => {
+        expect(() => memberManager.members.delete()).not.toThrow();
+      });
+    });
+  });
+
+  describe('legacy helper methods', () => {
+    it('should verify map consistency', () => {
+      const result = memberManager.verifyMapConsistency();
+
+      expect(result).toEqual({
+        isConsistent: true,
+        errors: [],
+        memberCount: 0,
+        mappingCount: 0
+      });
+    });
+
+    it('should return member as-is for encryptMemberData', () => {
+      const member = { athleteId: 12345, name: 'Test' };
+      const result = memberManager.encryptMemberData(member);
+
+      expect(result).toEqual(member);
+    });
+
+    it('should return member as-is for decryptMemberData', () => {
+      const member = { athleteId: 12345, name: 'Test' };
+      const result = memberManager.decryptMemberData(member);
+
+      expect(result).toEqual(member);
     });
   });
 });

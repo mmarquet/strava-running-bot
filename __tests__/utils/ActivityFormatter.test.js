@@ -160,6 +160,48 @@ describe('ActivityFormatter', () => {
     });
   });
 
+  describe('formatSpeed', () => {
+    it('should calculate speed correctly', () => {
+      const speed = ActivityFormatter.formatSpeed(20000, 3600); // 20km in 1 hour
+      expect(speed).toBe('20.0 km/h');
+    });
+
+    it('should calculate speed for shorter distances', () => {
+      const speed = ActivityFormatter.formatSpeed(5000, 1800); // 5km in 30 minutes
+      expect(speed).toBe('10.0 km/h');
+    });
+
+    it('should handle decimal speeds', () => {
+      const speed = ActivityFormatter.formatSpeed(15000, 3600); // 15km in 1 hour
+      expect(speed).toBe('15.0 km/h');
+    });
+
+    it('should round to one decimal place', () => {
+      const speed = ActivityFormatter.formatSpeed(10000, 3333); // ~10.8 km/h
+      expect(speed).toBe('10.8 km/h');
+    });
+
+    it('should handle zero time', () => {
+      const speed = ActivityFormatter.formatSpeed(5000, 0);
+      expect(speed).toBe('N/A');
+    });
+
+    it('should handle very high speeds', () => {
+      const speed = ActivityFormatter.formatSpeed(50000, 3600); // 50km in 1 hour
+      expect(speed).toBe('50.0 km/h');
+    });
+
+    it('should handle very low speeds', () => {
+      const speed = ActivityFormatter.formatSpeed(1000, 3600); // 1km in 1 hour
+      expect(speed).toBe('1.0 km/h');
+    });
+
+    it('should handle zero distance', () => {
+      const speed = ActivityFormatter.formatSpeed(0, 3600);
+      expect(speed).toBe('0.0 km/h');
+    });
+  });
+
   describe('escapeDiscordMarkdown', () => {
     it('should escape asterisks', () => {
       const result = ActivityFormatter.escapeDiscordMarkdown('*bold text*');

@@ -269,6 +269,62 @@ describe('ActivityEmbedBuilder', () => {
       expect(mockEmbedBuilder.setColor).toHaveBeenCalledWith('#0074D9');
     });
 
+    it('should display VirtualRide with game icon and [Virtual] prefix', () => {
+      const virtualRideActivity = { ...mockActivity, type: 'VirtualRide' };
+      ActivityFormatter.isVirtualRide.mockReturnValue(true);
+      ActivityFormatter.getActivityTypeIcon.mockReturnValue('🎮');
+      ActivityFormatter.getActivityTypeColor.mockReturnValue('#0074D9');
+
+      ActivityEmbedBuilder.createActivityEmbed(virtualRideActivity);
+
+      expect(ActivityFormatter.isVirtualRide).toHaveBeenCalledWith(virtualRideActivity);
+      expect(ActivityFormatter.getActivityTypeIcon).toHaveBeenCalledWith('VirtualRide');
+      expect(mockEmbedBuilder.setTitle).toHaveBeenCalledWith('🎮 [Virtual] Morning Run');
+      expect(ActivityFormatter.getActivityTypeColor).toHaveBeenCalledWith('VirtualRide');
+      expect(mockEmbedBuilder.setColor).toHaveBeenCalledWith('#0074D9');
+    });
+
+    it('should display Ride with trainer=true as VirtualRide', () => {
+      const trainerRideActivity = { ...mockActivity, type: 'Ride', trainer: true };
+      ActivityFormatter.isVirtualRide.mockReturnValue(true);
+      ActivityFormatter.getActivityTypeIcon.mockReturnValue('🎮');
+      ActivityFormatter.getActivityTypeColor.mockReturnValue('#0074D9');
+      ActivityFormatter.formatSpeed.mockReturnValue('25.0 km/h');
+
+      ActivityEmbedBuilder.createActivityEmbed(trainerRideActivity);
+
+      expect(ActivityFormatter.isVirtualRide).toHaveBeenCalledWith(trainerRideActivity);
+      expect(ActivityFormatter.getActivityTypeIcon).toHaveBeenCalledWith('VirtualRide');
+      expect(mockEmbedBuilder.setTitle).toHaveBeenCalledWith('🎮 [Virtual] Morning Run');
+      expect(ActivityFormatter.getActivityTypeColor).toHaveBeenCalledWith('VirtualRide');
+    });
+
+    it('should use speed metric for VirtualRide (not pace)', () => {
+      const virtualRideActivity = { ...mockActivity, type: 'VirtualRide', distance: 20000, moving_time: 3600 };
+      ActivityFormatter.isVirtualRide.mockReturnValue(true);
+      ActivityFormatter.formatSpeed.mockReturnValue('20.0 km/h');
+
+      ActivityEmbedBuilder.createActivityEmbed(virtualRideActivity);
+
+      // Should call formatSpeed, not formatPace
+      expect(ActivityFormatter.formatSpeed).toHaveBeenCalledWith(20000, 3600);
+      expect(mockEmbedBuilder.addFields).toHaveBeenNthCalledWith(2, [
+        { name: '🚴 Speed', value: '20.0 km/h', inline: true }
+      ]);
+    });
+
+    it('should NOT add [Virtual] prefix for regular rides', () => {
+      const regularRide = { ...mockActivity, type: 'Ride', trainer: false };
+      ActivityFormatter.isVirtualRide.mockReturnValue(false);
+      ActivityFormatter.getActivityTypeIcon.mockReturnValue('🚴');
+
+      ActivityEmbedBuilder.createActivityEmbed(regularRide);
+
+      expect(ActivityFormatter.isVirtualRide).toHaveBeenCalledWith(regularRide);
+      expect(mockEmbedBuilder.setTitle).toHaveBeenCalledWith('🚴 Morning Run');
+      expect(mockEmbedBuilder.setTitle).not.toHaveBeenCalledWith(expect.stringContaining('[Virtual]'));
+    });
+
     it('should escape markdown in activity name', () => {
       const activityWithMarkdown = { ...mockActivity, name: 'Run with *bold* text' };
       ActivityFormatter.escapeDiscordMarkdown.mockReturnValue('Run with \\*bold\\* text');

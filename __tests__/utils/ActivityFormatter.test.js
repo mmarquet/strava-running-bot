@@ -12,9 +12,100 @@ describe('ActivityFormatter', () => {
       expect(color).toBe('#0074D9');
     });
 
+    it('should return correct color for VirtualRide activity', () => {
+      const color = ActivityFormatter.getActivityTypeColor('VirtualRide');
+      expect(color).toBe('#0074D9');
+    });
+
     it('should return default color for unknown activity', () => {
       const color = ActivityFormatter.getActivityTypeColor('UnknownActivity');
       expect(color).toBe('#FC4C02');
+    });
+  });
+
+  describe('getActivityTypeIcon', () => {
+    it('should return correct icon for Run activity', () => {
+      const icon = ActivityFormatter.getActivityTypeIcon('Run');
+      expect(icon).toBe('🏃');
+    });
+
+    it('should return correct icon for Ride activity', () => {
+      const icon = ActivityFormatter.getActivityTypeIcon('Ride');
+      expect(icon).toBe('🚴');
+    });
+
+    it('should return correct icon for VirtualRide activity', () => {
+      const icon = ActivityFormatter.getActivityTypeIcon('VirtualRide');
+      expect(icon).toBe('🎮');
+    });
+
+    it('should return correct icon for Swim activity', () => {
+      const icon = ActivityFormatter.getActivityTypeIcon('Swim');
+      expect(icon).toBe('🏊');
+    });
+
+    it('should return correct icon for Walk activity', () => {
+      const icon = ActivityFormatter.getActivityTypeIcon('Walk');
+      expect(icon).toBe('🚶');
+    });
+
+    it('should return correct icon for Hike activity', () => {
+      const icon = ActivityFormatter.getActivityTypeIcon('Hike');
+      expect(icon).toBe('🥾');
+    });
+
+    it('should return correct icon for Workout activity', () => {
+      const icon = ActivityFormatter.getActivityTypeIcon('Workout');
+      expect(icon).toBe('🏋️');
+    });
+
+    it('should return default icon for unknown activity', () => {
+      const icon = ActivityFormatter.getActivityTypeIcon('UnknownActivity');
+      expect(icon).toBe('🏃');
+    });
+  });
+
+  describe('isVirtualRide', () => {
+    it('should return true for activity with type VirtualRide', () => {
+      const activity = { type: 'VirtualRide' };
+      expect(ActivityFormatter.isVirtualRide(activity)).toBe(true);
+    });
+
+    it('should return true for Ride with trainer flag', () => {
+      const activity = { type: 'Ride', trainer: true };
+      expect(ActivityFormatter.isVirtualRide(activity)).toBe(true);
+    });
+
+    it('should return false for regular Ride without trainer flag', () => {
+      const activity = { type: 'Ride', trainer: false };
+      expect(ActivityFormatter.isVirtualRide(activity)).toBe(false);
+    });
+
+    it('should return false for Ride without trainer property', () => {
+      const activity = { type: 'Ride' };
+      expect(ActivityFormatter.isVirtualRide(activity)).toBe(false);
+    });
+
+    it('should return false for Run activity', () => {
+      const activity = { type: 'Run' };
+      expect(ActivityFormatter.isVirtualRide(activity)).toBe(false);
+    });
+
+    it('should return false for Run with trainer flag', () => {
+      const activity = { type: 'Run', trainer: true };
+      expect(ActivityFormatter.isVirtualRide(activity)).toBe(false);
+    });
+
+    it('should return false for null activity', () => {
+      expect(ActivityFormatter.isVirtualRide(null)).toBe(false);
+    });
+
+    it('should return false for undefined activity', () => {
+      expect(ActivityFormatter.isVirtualRide(undefined)).toBe(false);
+    });
+
+    it('should return false for empty object', () => {
+      expect(ActivityFormatter.isVirtualRide({})).toBe(false);
     });
   });
 

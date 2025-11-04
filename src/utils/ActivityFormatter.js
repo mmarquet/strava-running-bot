@@ -14,13 +14,14 @@ class ActivityFormatter {
     const colors = {
       'Run': '#FC4C02',      // Strava orange
       'Ride': '#0074D9',     // Blue
+      'VirtualRide': '#0074D9', // Blue (same as regular rides)
       'Swim': '#39CCCC',     // Aqua
       'Walk': '#2ECC40',     // Green
       'Hike': '#8B4513',     // Brown
       'Workout': '#B10DC9',  // Purple
       'default': '#FC4C02'   // Default Strava orange
     };
-    
+
     return colors[activityType] || colors.default;
   }
 
@@ -31,15 +32,16 @@ class ActivityFormatter {
    */
   static getActivityTypeIcon(activityType) {
     const icon = {
-      'Run': '🏃',      
-      'Ride': '🚴',   
-      'Swim': '🏊',   
-      'Walk': '🚶',   
-      'Hike': '🥾',   
+      'Run': '🏃',
+      'Ride': '🚴',
+      'VirtualRide': '🎮', // Game controller for virtual rides
+      'Swim': '🏊',
+      'Walk': '🚶',
+      'Hike': '🥾',
       'Workout': '🏋️',
-      'default': '🏃' 
+      'default': '🏃'
     };
-    
+
     return icon[activityType] || icon.default;
   }
 
@@ -106,13 +108,30 @@ class ActivityFormatter {
   }
 
   /**
+   * Check if an activity is a virtual/indoor ride
+   * @param {Object} activity - Activity object
+   * @returns {boolean} True if activity is a virtual ride
+   */
+  static isVirtualRide(activity) {
+    if (!activity) return false;
+
+    // Check if activity type is explicitly VirtualRide
+    if (activity.type === 'VirtualRide') return true;
+
+    // Check if it's a ride with trainer flag (indoor/virtual)
+    if (activity.type === 'Ride' && activity.trainer === true) return true;
+
+    return false;
+  }
+
+  /**
    * Escape Discord markdown characters to prevent formatting issues
    * @param {string} text - Text that may contain Discord markdown characters
    * @returns {string} Text with escaped markdown characters
    */
   static escapeDiscordMarkdown(text) {
     if (!text || typeof text !== 'string') return text;
-    
+
     // Escape Discord markdown characters
     return text
       .replace(/\*/g, '\\*')    // Escape asterisks (italic/bold)

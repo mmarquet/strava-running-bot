@@ -16,16 +16,24 @@ class ActivityEmbedBuilder {
    */
   static createActivityEmbed(activity, options = {}) {
     const { type = 'posted' } = options;
-    
+
+    // Determine activity type for display (VirtualRide if it's a virtual ride)
+    const displayType = ActivityFormatter.isVirtualRide(activity) ? 'VirtualRide' : activity.type;
+    const activityIcon = ActivityFormatter.getActivityTypeIcon(displayType);
+
+    // Add [Virtual] prefix for virtual rides
+    const virtualPrefix = ActivityFormatter.isVirtualRide(activity) ? '[Virtual] ' : '';
+    const activityTitle = `${activityIcon} ${virtualPrefix}${ActivityFormatter.escapeDiscordMarkdown(activity.name)}`;
+
     const embed = new EmbedBuilder()
-      .setTitle(`${ActivityFormatter.getActivityTypeIcon(activity.type)} ${ActivityFormatter.escapeDiscordMarkdown(activity.name)}`)
+      .setTitle(activityTitle)
       .setTimestamp(new Date(activity.start_date))
       .setURL(`https://www.strava.com/activities/${activity.id}`);
-    this._setEmbedColor(embed, activity);
+    this._setEmbedColor(embed, activity, displayType);
     this._setEmbedThumbnail(embed, activity);
     this._setEmbedAuthorAndFooter(embed, activity, type);
     this._addActivityDescription(embed, activity);
-    this._addCoreActivityFields(embed, activity);
+    this._addCoreActivityFields(embed, activity, displayType);
     this._addOptionalActivityFields(embed, activity);
     this._addMapImage(embed, activity);
 
@@ -36,10 +44,11 @@ class ActivityEmbedBuilder {
    * Set embed color based on activity type and workout type (Race or not)
    * @param {EmbedBuilder} embed - Discord embed builder
    * @param {Object} activity - Activity data
+   * @param {string} displayType - Display type (may be VirtualRide instead of Ride)
    */
-  static _setEmbedColor(embed, activity) {
+  static _setEmbedColor(embed, activity, displayType) {
     const raceColor = '#D4AF37'; // Gold
-    const color = activity.isRace ? raceColor : ActivityFormatter.getActivityTypeColor(activity.type);
+    const color = activity.isRace ? raceColor : ActivityFormatter.getActivityTypeColor(displayType);
     embed.setColor(color);
   }
 
@@ -109,8 +118,9 @@ class ActivityEmbedBuilder {
    * Add core activity fields (distance, time, pace)
    * @param {EmbedBuilder} embed - Discord embed builder
    * @param {Object} activity - Activity data
+   * @param {string} displayType - Display type (may be VirtualRide instead of Ride)
    */
-  static _addCoreActivityFields(embed, activity) {
+  static _addCoreActivityFields(embed, activity, displayType) {
     const activity_time = activity.isRace ? activity.elapsed_time : activity.moving_time;
     embed.addFields([
       {
@@ -132,7 +142,7 @@ class ActivityEmbedBuilder {
           inline: true,
         },
       ]);
-    } else if (activity.type === 'Ride') {
+    } else if (activity.type === 'Ride' || displayType === 'VirtualRide') {
       embed.addFields([
         {
           name: '🚴 Speed',

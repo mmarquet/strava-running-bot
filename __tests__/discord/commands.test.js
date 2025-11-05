@@ -1143,4 +1143,151 @@ describe('DiscordCommands', () => {
       ]);
     });
   });
+
+  describe('helper methods', () => {
+    describe('formatDistanceDisplay', () => {
+      it('should format 5K distance', () => {
+        expect(discordCommands.formatDistanceDisplay(5)).toBe('5K');
+      });
+
+      it('should format 10K distance', () => {
+        expect(discordCommands.formatDistanceDisplay(10)).toBe('10K');
+      });
+
+      it('should format Half Marathon distance', () => {
+        expect(discordCommands.formatDistanceDisplay(21.1)).toBe('Half Marathon (21.1K)');
+      });
+
+      it('should format Marathon distance', () => {
+        expect(discordCommands.formatDistanceDisplay(42.2)).toBe('Marathon (42.2K)');
+      });
+
+      it('should format custom distance', () => {
+        expect(discordCommands.formatDistanceDisplay(15)).toBe('15km');
+      });
+
+      it('should format decimal custom distance', () => {
+        expect(discordCommands.formatDistanceDisplay(12.5)).toBe('12.5km');
+      });
+    });
+
+    describe('_processRaceDistance', () => {
+      it('should process 5K road race preset', () => {
+        const result = discordCommands._processRaceDistance('road', '5', null);
+
+        expect(result).toEqual({
+          finalDistance: '5K',
+          distanceKm: '5'
+        });
+      });
+
+      it('should process 10K road race preset', () => {
+        const result = discordCommands._processRaceDistance('road', '10', null);
+
+        expect(result).toEqual({
+          finalDistance: '10K',
+          distanceKm: '10'
+        });
+      });
+
+      it('should process Half Marathon preset', () => {
+        const result = discordCommands._processRaceDistance('road', '21.1', null);
+
+        expect(result).toEqual({
+          finalDistance: 'Half Marathon (21.1K)',
+          distanceKm: '21.1'
+        });
+      });
+
+      it('should process Marathon preset', () => {
+        const result = discordCommands._processRaceDistance('road', '42.2', null);
+
+        expect(result).toEqual({
+          finalDistance: 'Marathon (42.2K)',
+          distanceKm: '42.2'
+        });
+      });
+
+      it('should process custom road race distance', () => {
+        const result = discordCommands._processRaceDistance('road', 'other', '15');
+
+        expect(result).toEqual({
+          finalDistance: '15km',
+          distanceKm: '15'
+        });
+      });
+
+      it('should process custom road race with decimal distance', () => {
+        const result = discordCommands._processRaceDistance('road', 'other', '12.5');
+
+        expect(result).toEqual({
+          finalDistance: '12.5km',
+          distanceKm: '12.5'
+        });
+      });
+
+      it('should handle trail race without custom distance', () => {
+        const result = discordCommands._processRaceDistance('trail', null, null);
+
+        expect(result).toEqual({
+          finalDistance: null,
+          distanceKm: null
+        });
+      });
+
+      it('should process trail race with custom distance', () => {
+        const result = discordCommands._processRaceDistance('trail', null, '25');
+
+        expect(result).toEqual({
+          finalDistance: '25km',
+          distanceKm: '25'
+        });
+      });
+
+      it('should handle triathlon without custom distance', () => {
+        const result = discordCommands._processRaceDistance('triathlon', null, null);
+
+        expect(result).toEqual({
+          finalDistance: null,
+          distanceKm: null
+        });
+      });
+
+      it('should return nulls for triathlon (not handled)', () => {
+        const result = discordCommands._processRaceDistance('triathlon', null, '70.3');
+
+        expect(result).toEqual({
+          finalDistance: null,
+          distanceKm: null
+        });
+      });
+
+      it('should handle other race types without custom distance', () => {
+        const result = discordCommands._processRaceDistance('obstacle', null, null);
+
+        expect(result).toEqual({
+          finalDistance: null,
+          distanceKm: null
+        });
+      });
+
+      it('should return nulls for other race types (not handled)', () => {
+        const result = discordCommands._processRaceDistance('obstacle', null, '10');
+
+        expect(result).toEqual({
+          finalDistance: null,
+          distanceKm: null
+        });
+      });
+
+      it('should return nulls when road race preset is "other" but no custom distance', () => {
+        const result = discordCommands._processRaceDistance('road', 'other', null);
+
+        expect(result).toEqual({
+          finalDistance: null,
+          distanceKm: null
+        });
+      });
+    });
+  });
 });

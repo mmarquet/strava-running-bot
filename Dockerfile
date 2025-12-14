@@ -31,6 +31,7 @@ RUN mkdir -p /app/data && \
 COPY --chown=botuser:nodejs src/ ./src/
 COPY --chown=botuser:nodejs config/ ./config/
 COPY --chown=botuser:nodejs utils/ ./utils/
+COPY --chown=botuser:nodejs public/ ./public/
 
 # Add entrypoint script that ensures data folder exists and is owned by botuser, then drops to botuser
 RUN cat > /usr/local/bin/entrypoint.sh <<'EOF'

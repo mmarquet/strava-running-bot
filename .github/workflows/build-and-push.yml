@@ -23,7 +23,7 @@ jobs:
 
       # Ensure a container-based buildx builder is created so cache export (--cache-to) is supported
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           driver: docker-container
 

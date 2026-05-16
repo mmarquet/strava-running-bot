@@ -42,9 +42,9 @@ updates:
     # Enable auto-merge for patch updates that pass tests
     # Note: This requires branch protection rules with required status checks
     assignees:
-      - "mmarquet"
+      - "mpaloulack"
     reviewers:
-      - "mmarquet"
+      - "mpaloulack"
     # Labels for better organization
     labels:
       - "dependencies"
@@ -63,9 +63,9 @@ updates:
       prefix: "docker"
       include: "scope"
     assignees:
-      - "mmarquet"
+      - "mpaloulack"
     reviewers:
-      - "mmarquet"
+      - "mpaloulack"
     labels:
       - "docker"
       - "dependencies" 
@@ -83,9 +83,9 @@ updates:
       prefix: "ci"
       include: "scope"
     assignees:
-      - "mmarquet"
+      - "mpaloulack"
     reviewers:
-      - "mmarquet"
+      - "mpaloulack"
     labels:
       - "github-actions"
       - "ci"

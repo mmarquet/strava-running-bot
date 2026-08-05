@@ -29,7 +29,7 @@
     "axios": "^1.13.1",
     "better-sqlite3": "^12.10.0",
     "chalk": "^4.1.2",
-    "discord.js": "^14.24.2",
+    "discord.js": "^14.27.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
